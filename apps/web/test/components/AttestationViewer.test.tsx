@@ -8,9 +8,11 @@ import { AttestationViewer } from '../../components/AttestationViewer';
 import type { NearAiAttestation, Hex } from '@haggle/shared';
 
 // Mock useAttestationBundle so we can control its return value per test
-const mockUseAttestationBundle = vi.fn(() => ({ data: undefined, isLoading: false, error: null }));
+type BundleResult = { data: unknown; isLoading: boolean; error: Error | null };
+const defaultBundle: BundleResult = { data: undefined, isLoading: false, error: null };
+let bundleResult: BundleResult = defaultBundle;
 vi.mock('@/lib/api', () => ({
-  useAttestationBundle: (...args: unknown[]) => mockUseAttestationBundle(...args),
+  useAttestationBundle: () => bundleResult,
 }));
 
 // Mock sonner toast
@@ -82,22 +84,15 @@ describe('AttestationViewer', () => {
 describe('AttestationBundleExpando error path', () => {
   it('renders error message when bundle fetch fails', async () => {
     const { fireEvent } = await import('@testing-library/react');
-    // Return error on every call so it's active when expando opens and re-renders
-    mockUseAttestationBundle.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      error: new Error('network failure'),
-    }));
+    bundleResult = { data: undefined, isLoading: false, error: new Error('network failure') };
 
     render(<AttestationViewer attestation={SAMPLE_ATTESTATION} />);
 
-    // Open the expando — this causes AttestationBundleExpando to call useAttestationBundle with a real dealId
     const expandoButton = screen.getByRole('button', { name: /전체 증명 번들 보기/ });
     fireEvent.click(expandoButton);
 
     expect(screen.getByText(/번들을 불러올 수 없습니다/)).toBeInTheDocument();
 
-    // Restore default mock
-    mockUseAttestationBundle.mockImplementation(() => ({ data: undefined, isLoading: false, error: null }));
+    bundleResult = defaultBundle;
   });
 });
