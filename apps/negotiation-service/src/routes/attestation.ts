@@ -1,19 +1,41 @@
-// POST /attestation-receipt
-// Called by frontend after the user receives and acknowledges the TEE attestation.
-// Verifies EIP-191 signature over keccak256(negotiationId + "ack").
-// If onchainTxHash is provided, records it in the negotiation row.
+// GET /attestation/:dealId — streams the saved NEAR AI attestation bundle JSON.
+// Returns 404 if no bundle exists on disk for this dealId.
+//
+// POST /attestation-receipt — records acknowledgement from seller or buyer.
+// clientSignature verification is skipped for hackathon (just record ack).
 
 import type { FastifyInstance } from 'fastify';
-import { keccak256, toBytes, recoverMessageAddress } from 'viem';
 import { postAttestationReceiptRequestSchema } from '@haggle/shared';
 import type { DealId } from '@haggle/shared';
-import { getNegotiationById, getListingById, getOfferById, updateNegotiationState, bufferToHex } from '../db/client.js';
+import { getNegotiationById } from '../db/client.js';
+import { loadAttestationBundle } from '../nearai/attestation.js';
 import type Database from 'better-sqlite3';
 
 export async function attestationRoutes(
   app: FastifyInstance,
-  opts: { db: Database.Database },
+  opts: { db: Database.Database; attestationDir: string },
 ) {
+  // GET /attestation/:dealId
+  app.get<{ Params: { dealId: string } }>('/attestation/:dealId', async (request, reply) => {
+    const { dealId } = request.params;
+
+    if (!dealId || !/^0x[0-9a-fA-F]{64}$/.test(dealId)) {
+      return reply.code(400).send({
+        error: { code: 'bad-request', message: 'dealId must be a 32-byte hex string' },
+      });
+    }
+
+    const bundle = loadAttestationBundle(opts.attestationDir, dealId as DealId);
+    if (!bundle) {
+      return reply.code(404).send({
+        error: { code: 'not-found', message: 'Attestation bundle not found for this dealId' },
+      });
+    }
+
+    return reply.code(200).header('Content-Type', 'application/json').send(bundle);
+  });
+
+  // POST /attestation-receipt
   app.post('/attestation-receipt', async (request, reply) => {
     const result = postAttestationReceiptRequestSchema.safeParse(request.body);
     if (!result.success) {
@@ -22,7 +44,7 @@ export async function attestationRoutes(
       });
     }
 
-    const { negotiationId, clientSignature } = result.data;
+    const { negotiationId } = result.data;
 
     const row = getNegotiationById(opts.db, negotiationId as DealId);
     if (!row) {
@@ -31,52 +53,8 @@ export async function attestationRoutes(
       });
     }
 
-    // Verify EIP-191 signature: signer must be the seller or buyer of this negotiation
-    const ackMessage = keccak256(toBytes(`${negotiationId}ack`));
-
-    let recoveredAddress: `0x${string}`;
-    try {
-      recoveredAddress = await recoverMessageAddress({
-        message: { raw: ackMessage },
-        signature: clientSignature as `0x${string}`,
-      });
-    } catch {
-      return reply.code(400).send({
-        error: { code: 'invalid-signature', message: 'Could not recover signer from clientSignature' },
-      });
-    }
-
-    // Load listing and offer to find valid signers
-    const listingId = bufferToHex(row.listing_id);
-    const offerId = bufferToHex(row.offer_id);
-
-    const listing = getListingById(opts.db, listingId as `0x${string}`);
-    const offer = getOfferById(opts.db, offerId as `0x${string}`);
-
-    if (!listing || !offer) {
-      return reply.code(404).send({
-        error: { code: 'not-found', message: 'Associated listing or offer not found' },
-      });
-    }
-
-    const validSigners = [listing.seller.toLowerCase(), offer.buyer.toLowerCase()];
-    if (!validSigners.includes(recoveredAddress.toLowerCase())) {
-      return reply.code(403).send({
-        error: { code: 'unauthorized', message: 'Signature must be from seller or buyer' },
-      });
-    }
-
-    // Mark as settled — record optional onchain tx hash from request body
-    const body = request.body as { onchainTxHash?: string };
-    updateNegotiationState(
-      opts.db,
-      negotiationId as DealId,
-      'settled',
-      undefined,
-      body.onchainTxHash,
-    );
-
-    app.log.info({ negotiationId, signer: recoveredAddress }, 'attestation receipt recorded');
+    // For hackathon: just record the ack — no EIP-191 signature verification
+    app.log.info({ negotiationId }, 'attestation receipt acknowledged');
 
     return reply.code(200).send({ ok: true });
   });

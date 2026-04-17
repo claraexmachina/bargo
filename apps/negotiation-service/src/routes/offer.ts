@@ -1,31 +1,41 @@
 // POST /offer
-// Validates RLN proof, checks Karma gate, inserts offer, fires TEE negotiation.
+// Validates RLN proof, checks Karma gate, inserts offer, fires engine negotiation.
 // Returns 202 immediately; client polls GET /status/:negotiationId.
 //
 // offerId:  keccak256(abiEncodePacked(['address','bytes32','uint256'], [buyer, listingId, nonce]))
 // dealId:   keccak256(abiEncodePacked(['bytes32','bytes32'], [listingId, offerId]))
 
 import type { FastifyInstance } from 'fastify';
-import { keccak256, encodePacked, toHex } from 'viem';
-import { randomBytes } from '@noble/ciphers/webcrypto';
+import { keccak256, encodePacked } from 'viem';
 import { postOfferRequestSchema, THROUGHPUT_LIMITS } from '@haggle/shared';
 import type { KarmaTier, DealId, ListingId, OfferId } from '@haggle/shared';
 import {
   insertOffer,
   createNegotiation,
   updateNegotiationState,
+  updateNegotiationAttestation,
   nextCounter,
   getListingById,
+  bufferToHex,
 } from '../db/client.js';
 import { verifyRlnProof } from '../rln/verify.js';
 import { canOffer, getActiveNegotiations, getTier } from '../chain/read.js';
-import type { TeeClient } from '../tee/client.js';
+import { runNegotiation } from '../negotiate/engine.js';
+import { submitSettlement } from '../chain/relayer.js';
 import type Database from 'better-sqlite3';
 import type { ChainDeps } from './index.js';
+import type { NearAiConfig } from './index.js';
 
 export async function offerRoutes(
   app: FastifyInstance,
-  opts: { db: Database.Database; tee: TeeClient; chain: ChainDeps },
+  opts: {
+    db: Database.Database;
+    chain: ChainDeps;
+    nearAi: NearAiConfig;
+    relayerPrivateKey: `0x${string}`;
+    haggleEscrowAddress: `0x${string}`;
+    attestationDir: string;
+  },
 ) {
   app.post('/offer', async (request, reply) => {
     const result = postOfferRequestSchema.safeParse(request.body);
@@ -54,7 +64,7 @@ export async function offerRoutes(
       });
     }
 
-    // 3. Karma gate — check buyer's tier meets listing's requiredKarmaTier
+    // 3. Karma gate
     const offerAllowed = await canOffer(
       opts.chain.client,
       opts.chain.karmaReaderAddress,
@@ -68,7 +78,7 @@ export async function offerRoutes(
       });
     }
 
-    // 4. Throughput check — active negotiations must be under tier limit
+    // 4. Throughput check
     const buyerTier = await getTier(opts.chain.client, opts.chain.karmaReaderAddress, body.buyer);
     const limit = THROUGHPUT_LIMITS[buyerTier] ?? THROUGHPUT_LIMITS[0];
     const active = await getActiveNegotiations(
@@ -90,51 +100,59 @@ export async function offerRoutes(
         ['address', 'bytes32', 'uint256'],
         [body.buyer, body.listingId, BigInt(nonce)],
       ),
-    );
+    ) as OfferId;
     const negotiationId = keccak256(
       encodePacked(['bytes32', 'bytes32'], [body.listingId, offerId]),
-    );
+    ) as DealId;
 
     // 6. Insert offer + create negotiation (state: queued)
     insertOffer(opts.db, {
       id: offerId,
-      listingId: body.listingId,
+      listingId: body.listingId as ListingId,
       buyer: body.buyer,
       bidPrice: body.bidPrice,
-      encMaxBuyJson: JSON.stringify(body.encMaxBuy),
-      encBuyerConditionsJson: JSON.stringify(body.encBuyerConditions),
+      plaintextMaxBuy: body.plaintextMaxBuy,
+      plaintextBuyerConditions: body.plaintextBuyerConditions,
       rlnNullifier: body.rlnProof.nullifier,
       rlnEpoch: body.rlnProof.epoch,
     });
 
     createNegotiation(opts.db, {
       id: negotiationId,
-      listingId: body.listingId,
+      listingId: body.listingId as ListingId,
       offerId,
     });
 
-    // 7. Fire-and-forget TEE negotiation
-    const nonce16 = toHex(randomBytes(16));
-    const itemMeta = JSON.parse(listing.item_meta_json) as { title: string; category: string };
-    const sellerTier: KarmaTier = (await getTier(
+    // 7. Load seller tier for engine
+    const sellerTier = await getTier(
       opts.chain.client,
       opts.chain.karmaReaderAddress,
       listing.seller as `0x${string}`,
-    ));
+    );
 
-    void runNegotiation({
+    const itemMeta = JSON.parse(listing.item_meta_json) as { title: string };
+
+    // 8. Fire-and-forget negotiation engine
+    void fireNegotiation({
       db: opts.db,
-      tee: opts.tee,
-      negotiationId: negotiationId as DealId,
+      negotiationId,
       listingId: body.listingId as ListingId,
-      offerId: offerId as OfferId,
-      nonce: nonce16,
-      itemMeta,
-      karmaTiers: { seller: sellerTier, buyer: buyerTier },
-      encMinSell: JSON.parse(listing.enc_min_sell_json),
-      encSellerConditions: JSON.parse(listing.enc_seller_conditions_json),
-      encMaxBuy: body.encMaxBuy,
-      encBuyerConditions: body.encBuyerConditions,
+      offerId,
+      listingTitle: itemMeta.title,
+      sellerPlaintextMin: listing.plaintext_min_sell ?? '',
+      sellerPlaintextConditions: listing.plaintext_seller_conditions ?? '',
+      buyerPlaintextMax: body.plaintextMaxBuy,
+      buyerPlaintextConditions: body.plaintextBuyerConditions,
+      sellerKarmaTier: sellerTier,
+      buyerKarmaTier: buyerTier,
+      nearAiApiKey: opts.nearAi.apiKey,
+      nearAiBaseURL: opts.nearAi.baseURL,
+      nearAiModel: opts.nearAi.model,
+      nearAiTimeoutMs: opts.nearAi.timeoutMs,
+      attestationDir: opts.attestationDir,
+      relayerPrivateKey: opts.relayerPrivateKey,
+      haggleEscrowAddress: opts.haggleEscrowAddress,
+      hoodiRpcUrl: opts.chain.rpcUrl,
       log: app.log,
     });
 
@@ -146,45 +164,102 @@ export async function offerRoutes(
   });
 }
 
-interface RunNegotiationParams {
+interface FireNegotiationParams {
   db: Database.Database;
-  tee: TeeClient;
   negotiationId: DealId;
   listingId: ListingId;
   offerId: OfferId;
-  nonce: `0x${string}`;
-  itemMeta: { title: string; category: string };
-  karmaTiers: { seller: KarmaTier; buyer: KarmaTier };
-  encMinSell: import('@haggle/shared').EncryptedBlob;
-  encSellerConditions: import('@haggle/shared').EncryptedBlob;
-  encMaxBuy: import('@haggle/shared').EncryptedBlob;
-  encBuyerConditions: import('@haggle/shared').EncryptedBlob;
+  listingTitle: string;
+  sellerPlaintextMin: string;
+  sellerPlaintextConditions: string;
+  buyerPlaintextMax: string;
+  buyerPlaintextConditions: string;
+  sellerKarmaTier: KarmaTier;
+  buyerKarmaTier: KarmaTier;
+  nearAiApiKey: string;
+  nearAiBaseURL: string;
+  nearAiModel: string;
+  nearAiTimeoutMs: number;
+  attestationDir: string;
+  relayerPrivateKey: `0x${string}`;
+  haggleEscrowAddress: `0x${string}`;
+  hoodiRpcUrl: string;
   log: FastifyInstance['log'];
 }
 
-async function runNegotiation(p: RunNegotiationParams): Promise<void> {
+async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
   try {
     updateNegotiationState(p.db, p.negotiationId, 'running');
 
-    const attestation = await p.tee.negotiate({
+    const result = await runNegotiation({
+      dealId: p.negotiationId,
       listingId: p.listingId,
       offerId: p.offerId,
-      nonce: p.nonce,
-      listingMeta: p.itemMeta,
-      karmaTiers: p.karmaTiers,
-      encMinSell: p.encMinSell,
-      encSellerConditions: p.encSellerConditions,
-      encMaxBuy: p.encMaxBuy,
-      encBuyerConditions: p.encBuyerConditions,
+      listingTitle: p.listingTitle,
+      sellerPlaintextMin: p.sellerPlaintextMin,
+      sellerPlaintextConditions: p.sellerPlaintextConditions,
+      buyerPlaintextMax: p.buyerPlaintextMax,
+      buyerPlaintextConditions: p.buyerPlaintextConditions,
+      sellerKarmaTier: p.sellerKarmaTier,
+      buyerKarmaTier: p.buyerKarmaTier,
+      nearAiApiKey: p.nearAiApiKey,
+      nearAiBaseURL: p.nearAiBaseURL,
+      nearAiModel: p.nearAiModel,
+      nearAiTimeoutMs: p.nearAiTimeoutMs,
+      attestationDir: p.attestationDir,
     });
 
-    const finalState = attestation.result === 'agreement' ? 'agreement' : 'fail';
-    updateNegotiationState(p.db, p.negotiationId, finalState, attestation);
-    p.log.info({ negotiationId: p.negotiationId, result: attestation.result }, 'negotiation complete');
+    if (result.kind === 'fail') {
+      updateNegotiationState(p.db, p.negotiationId, 'fail', { failureReason: result.reason });
+      p.log.info({ negotiationId: p.negotiationId, reason: result.reason }, 'negotiation failed');
+      return;
+    }
+
+    // Agreement — persist attestation metadata
+    const { attestation, bundle } = result;
+
+    updateNegotiationAttestation(p.db, p.negotiationId, {
+      agreedConditionsHash: attestation.nearAiAttestationHash, // reuse nonce-bounded hash
+      nearAiAttestationHash: attestation.nearAiAttestationHash,
+      agreedConditionsJson: JSON.stringify(attestation.agreedConditions),
+      modelId: attestation.modelId,
+      completionId: attestation.completionId,
+      attestationBundlePath: `${p.attestationDir}/${p.negotiationId}.json`,
+    });
+
+    updateNegotiationState(p.db, p.negotiationId, 'agreement', { attestation });
+    p.log.info({ negotiationId: p.negotiationId }, 'negotiation agreement reached');
+
+    // Submit on-chain settlement
+    let txHash: `0x${string}` | undefined;
+    try {
+      txHash = await submitSettlement({
+        dealId: p.negotiationId,
+        listingId: p.listingId,
+        offerId: p.offerId,
+        agreedPriceWei: BigInt(attestation.agreedPrice),
+        agreedConditionsHash: attestation.nearAiAttestationHash,
+        nearAiAttestationHash: attestation.nearAiAttestationHash,
+        relayerPrivateKey: p.relayerPrivateKey,
+        rpcUrl: p.hoodiRpcUrl,
+        escrowAddress: p.haggleEscrowAddress,
+      });
+
+      updateNegotiationState(p.db, p.negotiationId, 'settled', {
+        attestation,
+        onchainTxHash: txHash,
+      });
+      p.log.info({ negotiationId: p.negotiationId, txHash }, 'settlement submitted on-chain');
+    } catch (relayerErr) {
+      const message = relayerErr instanceof Error ? relayerErr.message : 'relayer error';
+      p.log.error({ negotiationId: p.negotiationId, err: message }, 'relayer submission failed — state stays agreement');
+      // Keep state as 'agreement' — will be retried manually or by watcher
+    }
+
+    void bundle; // bundle is saved to disk inside engine.ts via saveAttestationBundle
   } catch (err) {
-    // Do not log enc* fields or full DTO — only negotiationId and error message
     const message = err instanceof Error ? err.message : 'unknown error';
-    p.log.error({ negotiationId: p.negotiationId, err: message }, 'negotiation failed');
-    updateNegotiationState(p.db, p.negotiationId, 'fail');
+    p.log.error({ negotiationId: p.negotiationId, err: message }, 'negotiation crashed');
+    updateNegotiationState(p.db, p.negotiationId, 'fail', { failureReason: 'llm_timeout' });
   }
 }

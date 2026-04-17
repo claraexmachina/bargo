@@ -1,9 +1,8 @@
 // GET /status/:negotiationId
-// Returns current negotiation state and attestation if available.
+// Returns current negotiation state, attestation (when agreement/settled), failureReason (when fail).
 
 import type { FastifyInstance } from 'fastify';
-import type { DealId } from '@haggle/shared';
-import type { TeeAttestation } from '@haggle/shared';
+import type { DealId, NearAiAttestation } from '@haggle/shared';
 import { getNegotiationById } from '../db/client.js';
 import type Database from 'better-sqlite3';
 
@@ -29,16 +28,30 @@ export async function statusRoutes(
         });
       }
 
-      const attestation: TeeAttestation | undefined =
-        row.attestation_json ? (JSON.parse(row.attestation_json) as TeeAttestation) : undefined;
+      const attestation: NearAiAttestation | undefined =
+        row.attestation_json
+          ? (JSON.parse(row.attestation_json) as NearAiAttestation)
+          : undefined;
 
-      return reply.code(200).send({
+      const response: Record<string, unknown> = {
         negotiationId,
         state: row.state,
-        attestation,
-        onchainTxHash: row.onchain_tx_hash ?? undefined,
         updatedAt: row.updated_at,
-      });
+      };
+
+      if (attestation && (row.state === 'agreement' || row.state === 'settled')) {
+        response.attestation = attestation;
+      }
+
+      if (row.failure_reason && row.state === 'fail') {
+        response.failureReason = row.failure_reason;
+      }
+
+      if (row.onchain_tx_hash) {
+        response.onchainTxHash = row.onchain_tx_hash;
+      }
+
+      return reply.code(200).send(response);
     },
   );
 }

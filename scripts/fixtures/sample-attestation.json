@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "dealId": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "listingId": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "offerId": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "_testPrivKey": "0x0101010101010101010101010101010101010101010101010101010101010101",
+    "_note": "Smoke-test fixture. quote/gpu_evidence are zeroed placeholders. nonce is fixed (not derived from dealId||completionId) — NRAS/TDX/nonce-binding checks are skipped in test-verify.mjs."
+  },
+  "bundle": {
+    "quote": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "gpu_evidence": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "signing_key": "0x041b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f70beaf8f588b541507fed6a642c5ab42dfdf8120a7f639de5122d47a69a8e8d1",
+    "signed_response": {
+      "completion_id": "chatcmpl-fixture-0000000001",
+      "model": "qwen3-30b",
+      "nonce": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "timestamp": 1714000000
+    },
+    "signature": "0xa6a3273c298d58c60489adfcd28edb4e27d62d5e76ff93e3bee4640f8e64ef751cbc0ef251d5822d5ad53b19dd2a69e8ee507187fc0bf11b42e2b54b2799ffa201"
+  }
+}
