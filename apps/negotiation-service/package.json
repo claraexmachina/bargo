@@ -1,0 +1,32 @@
+{
+  "name": "@haggle/negotiation-service",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src test"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@haggle/crypto": "workspace:*",
+    "@haggle/shared": "workspace:*",
+    "@noble/ciphers": "1.2.1",
+    "@noble/curves": "1.8.1",
+    "better-sqlite3": "^11.9.1",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.3.2",
+    "pino": "^9.6.0",
+    "viem": "^2.21.54",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "tsx": "4.19.2",
+    "typescript": "5.5.4",
+    "vitest": "^2.1.8"
+  }
+}
