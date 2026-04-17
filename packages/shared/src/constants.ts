@@ -1,5 +1,3 @@
-import type { Address } from './types.js';
-
 // --- Karma tier names ---
 export const KARMA_TIER_NAMES = ['Newcomer', 'Regular', 'Trusted', 'Elite'] as const;
 
@@ -24,11 +22,3 @@ export const RLN_MAX_PER_EPOCH = 3 as const;
 
 // --- Settlement ---
 export const SETTLEMENT_WINDOW_SECONDS = 86_400 as const; // 24 hours
-
-// --- Enclave signers whitelist ---
-// Ethereum addresses (secp256k1) allowed to produce TEE attestations.
-// Populated per deploy by contract-lead via packages/shared/src/addresses.ts PR.
-export const ENCLAVE_SIGNERS: readonly Address[] = [] as const;
-
-// --- Envelope protocol version ---
-export const ENVELOPE_VERSION = 1 as const;

@@ -71,6 +71,7 @@ export interface NearAiAttestation {
   offerId: OfferId;
   agreedPrice: string;
   agreedConditions: AgreedConditions;
+  agreedConditionsHash: Hex; // keccak256(canonical(agreedConditions)) — distinct from attestation hash
   modelId: string; // "qwen3-30b" or fallback
   completionId: string; // NEAR AI chat completion id
   nonce: Hex; // keccak256(dealId || completionId)
@@ -90,26 +91,30 @@ export interface RLNProof {
 
 // --- REST DTOs ---
 export interface PostListingRequest {
+  listingId: ListingId; // on-chain id produced by seller's registerListing tx; service validates against chain
   seller: Address;
   askPrice: string;
   requiredKarmaTier: KarmaTier;
   itemMeta: ListingMeta;
   plaintextMinSell: string; // wei as decimal
   plaintextSellerConditions: string; // utf-8, max 2KB, trimmed
+  onchainTxHash: Hex; // registerListing tx hash for audit
 }
 
 export interface PostListingResponse {
   listingId: ListingId;
-  onchainTxHash: Hex | null; // null until relayer broadcasts
+  onchainTxHash: Hex;
 }
 
 export interface PostOfferRequest {
+  offerId: OfferId; // on-chain id produced by buyer's submitOffer tx; service validates against chain
   buyer: Address;
   listingId: ListingId;
   bidPrice: string;
   plaintextMaxBuy: string;
   plaintextBuyerConditions: string;
   rlnProof: RLNProof;
+  onchainTxHash: Hex; // submitOffer tx hash for audit
 }
 
 export interface PostOfferResponse {
