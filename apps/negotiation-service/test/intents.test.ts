@@ -485,10 +485,9 @@ describe('POST /intent-matches/ack', () => {
 
     const row = db
       .prepare('SELECT acknowledged FROM intent_matches WHERE intent_id = ? AND listing_id = ?')
-      .get(
-        Buffer.from(intentId.slice(2), 'hex'),
-        Buffer.from(LISTING_ID.slice(2), 'hex'),
-      ) as { acknowledged: number } | undefined;
+      .get(Buffer.from(intentId.slice(2), 'hex'), Buffer.from(LISTING_ID.slice(2), 'hex')) as
+      | { acknowledged: number }
+      | undefined;
     expect(row?.acknowledged).toBe(1);
   });
 

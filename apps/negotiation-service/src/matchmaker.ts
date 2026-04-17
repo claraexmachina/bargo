@@ -13,29 +13,31 @@
 // blobs (which use buildListingAad(listingId)). Both the service decrypt path
 // and the web seal path must use the same 32-byte value.
 
+import { open } from '@bargo/crypto';
+import { bargoEscrowAbi } from '@bargo/shared';
+import type { EncryptedBlob, Hex, IntentId, KarmaTier, ListingId } from '@bargo/shared';
 import type Database from 'better-sqlite3';
 import type { FastifyBaseLogger } from 'fastify';
 import OpenAI from 'openai';
 import { keccak256, toBytes } from 'viem';
 import type { WatchContractEventReturnType } from 'viem';
-import { open } from '@bargo/crypto';
-import { bargoEscrowAbi } from '@bargo/shared';
-import type { EncryptedBlob, Hex, IntentId, KarmaTier, ListingId } from '@bargo/shared';
-import type { NearAiConfig } from './routes/index.js';
 import type { createChainClient } from './chain/read.js';
 import {
+  bufferToHex,
   getListingById,
   insertIntentMatch,
   listAllActiveIntents,
-  bufferToHex,
 } from './db/client.js';
 import type { IntentRow } from './db/client.js';
+import type { NearAiConfig } from './routes/index.js';
 
 // keccak256("bargo-intent-v1") as raw bytes — used as AAD for intent enc blobs.
 // Must match exactly what the web client uses when sealing intent blobs.
 // Bytes32: 0x<keccak256 of the utf-8 string "bargo-intent-v1">
 const INTENT_CONTEXT_STR = 'bargo-intent-v1' as const;
-const INTENT_CONTEXT_AAD: Uint8Array = toBytes(keccak256(new TextEncoder().encode(INTENT_CONTEXT_STR) as Uint8Array));
+const INTENT_CONTEXT_AAD: Uint8Array = toBytes(
+  keccak256(new TextEncoder().encode(INTENT_CONTEXT_STR) as Uint8Array),
+);
 
 type ChainClient = ReturnType<typeof createChainClient>;
 
@@ -89,7 +91,10 @@ async function callNearAiMatcher(
 
   const text = completion.choices[0]?.message?.content ?? '{}';
   // Strip markdown code fences if present
-  const stripped = text.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim();
+  const stripped = text
+    .replace(/^```[a-z]*\n?/, '')
+    .replace(/\n?```$/, '')
+    .trim();
   const parsed = JSON.parse(stripped) as Partial<NearAiMatchResponse>;
 
   const score = parsed.score;
@@ -118,7 +123,10 @@ export async function evaluateListingAgainstIntent(opts: {
   const intentId = bufferToHex(intent.id) as IntentId;
 
   // Apply public filters
-  const filters = JSON.parse(intent.filters_json) as { category?: string; requiredKarmaTierCeiling?: number };
+  const filters = JSON.parse(intent.filters_json) as {
+    category?: string;
+    requiredKarmaTierCeiling?: number;
+  };
   if (filters.category !== undefined) {
     const listingRow = getListingById(db, listingId);
     if (!listingRow) return;

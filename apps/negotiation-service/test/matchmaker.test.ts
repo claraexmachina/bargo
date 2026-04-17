@@ -6,7 +6,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { evaluateListingAgainstIntent } from '../src/matchmaker.js';
 import {
   bufferToHex,
   hexToBuffer,
@@ -15,6 +14,7 @@ import {
   listAllActiveIntents,
 } from '../src/db/client.js';
 import type { IntentRow } from '../src/db/client.js';
+import { evaluateListingAgainstIntent } from '../src/matchmaker.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -143,10 +143,7 @@ describe('evaluateListingAgainstIntent', () => {
 
     const row = db
       .prepare('SELECT * FROM intent_matches WHERE intent_id = ? AND listing_id = ?')
-      .get(
-        hexToBuffer(INTENT_ID),
-        hexToBuffer(LISTING_ID),
-      ) as Record<string, unknown> | undefined;
+      .get(hexToBuffer(INTENT_ID), hexToBuffer(LISTING_ID)) as Record<string, unknown> | undefined;
 
     expect(row).toBeTruthy();
     expect(row?.score).toBe('match');
@@ -156,9 +153,13 @@ describe('evaluateListingAgainstIntent', () => {
 
   it('does not insert when NEAR AI returns score=uncertain', async () => {
     const { default: OpenAI } = await import('openai');
-    const mockInstance = new (OpenAI as unknown as new () => { chat: { completions: { create: ReturnType<typeof vi.fn> } } })();
+    const mockInstance = new (
+      OpenAI as unknown as new () => { chat: { completions: { create: ReturnType<typeof vi.fn> } } }
+    )();
     mockInstance.chat.completions.create.mockResolvedValueOnce({
-      choices: [{ message: { content: JSON.stringify({ score: 'uncertain', reason: 'Not sure' }) } }],
+      choices: [
+        { message: { content: JSON.stringify({ score: 'uncertain', reason: 'Not sure' }) } },
+      ],
     });
 
     const intents = listAllActiveIntents(db);
@@ -180,9 +181,7 @@ describe('evaluateListingAgainstIntent', () => {
     // Instead, verify: if NEAR AI was called, a match row may exist.
     // We'll check the count is at most 1 (from default mock).
     const count = (
-      db
-        .prepare('SELECT COUNT(*) as cnt FROM intent_matches')
-        .get() as { cnt: number }
+      db.prepare('SELECT COUNT(*) as cnt FROM intent_matches').get() as { cnt: number }
     ).cnt;
     // Default mock returns 'match', so count will be 1
     expect(count).toBeGreaterThanOrEqual(0);
@@ -236,9 +235,7 @@ describe('evaluateListingAgainstIntent', () => {
 
     // But evaluate with requiredKarmaTier=2, ceiling=0 → should skip
     const intents = listAllActiveIntents(db);
-    const tierIntent = intents.find(
-      (i) => bufferToHex(i.id) === TIER_INTENT_ID,
-    ) as IntentRow;
+    const tierIntent = intents.find((i) => bufferToHex(i.id) === TIER_INTENT_ID) as IntentRow;
 
     await evaluateListingAgainstIntent({
       db,
@@ -259,7 +256,15 @@ describe('evaluateListingAgainstIntent', () => {
 
   it('handles NEAR AI failure gracefully — no crash, no match row', async () => {
     const { default: OpenAI } = await import('openai');
-    const mockInstance = (vi.mocked(OpenAI) as unknown as { mock: { results: Array<{ value: { chat: { completions: { create: ReturnType<typeof vi.fn> } } } }> } }).mock.results[0]?.value;
+    const mockInstance = (
+      vi.mocked(OpenAI) as unknown as {
+        mock: {
+          results: Array<{
+            value: { chat: { completions: { create: ReturnType<typeof vi.fn> } } };
+          }>;
+        };
+      }
+    ).mock.results[0]?.value;
     if (mockInstance) {
       mockInstance.chat.completions.create.mockRejectedValueOnce(new Error('NEAR AI timeout'));
     }
@@ -275,9 +280,7 @@ describe('evaluateListingAgainstIntent', () => {
     });
 
     const intents = listAllActiveIntents(db);
-    const errorIntent = intents.find(
-      (i) => bufferToHex(i.id) === ERROR_INTENT_ID,
-    ) as IntentRow;
+    const errorIntent = intents.find((i) => bufferToHex(i.id) === ERROR_INTENT_ID) as IntentRow;
 
     // Should not throw
     await expect(

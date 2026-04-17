@@ -1,3 +1,4 @@
+import { sealIntentConditions, sealIntentMaxBuy } from '@/lib/seal';
 /**
  * Verifies that sealIntentMaxBuy / sealIntentConditions produce valid EncryptedBlob
  * envelopes that the service can open with the corresponding private key.
@@ -7,7 +8,6 @@
 import { generateServiceKeypair, open } from '@bargo/crypto';
 import { keccak256, toBytes } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { sealIntentConditions, sealIntentMaxBuy } from '@/lib/seal';
 
 function buildIntentAad(): Uint8Array {
   return toBytes(keccak256(new TextEncoder().encode('bargo-intent-v1')));
