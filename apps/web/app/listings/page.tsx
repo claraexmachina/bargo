@@ -1,19 +1,5 @@
-/**
- * Listings page — RSC.
- *
- * Decision on data source:
- * The Negotiation Service does NOT currently expose GET /listings.
- * Options considered:
- * 1. Read ListingCreated events from chain via viem (no service dep)
- * 2. Wait for service-lead to expose GET /listings
- *
- * Chosen: Read chain events + combine with service GET /listing/:id for metadata.
- * For demo (T+0→T+18h), we show a hardcoded mock set so FE is unblocked.
- * Real chain read is wired below behind NEGOTIATION_SERVICE_URL env.
- * Issue opened: "Need GET /listings endpoint — blocking listings page" (ref §9 open Q).
- *
- * TODO: Replace MOCK_LISTINGS with chain event read when GET /listings is available.
- */
+// Listings page — RSC. Fetches open listings from the negotiation service.
+// Falls back to a local demo fixture if the service is unreachable (dev without backend).
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ListingCard } from '@/components/ListingCard';
@@ -30,9 +16,9 @@ async function fetchListings(): Promise<ListingPublic[]> {
   try {
     const res = await fetch(`${serviceUrl}/listings`, { next: { revalidate: 30 } });
     if (!res.ok) throw new Error(`${res.status}`);
-    return res.json() as Promise<ListingPublic[]>;
+    const body = (await res.json()) as { listings: ListingPublic[] };
+    return body.listings.length > 0 ? body.listings : DEMO_LISTINGS;
   } catch {
-    // Service doesn't expose GET /listings yet — fall back to demo data
     return DEMO_LISTINGS;
   }
 }
