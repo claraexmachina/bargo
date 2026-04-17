@@ -18,17 +18,17 @@ import { encodeFunctionData, keccak256, parseEventLogs, toHex } from 'viem';
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 
 const CATEGORIES = [
-  { value: 'electronics', label: '전자기기' },
-  { value: 'fashion', label: '패션/의류' },
-  { value: 'furniture', label: '가구/인테리어' },
-  { value: 'other', label: '기타' },
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'fashion', label: 'Fashion / Apparel' },
+  { value: 'furniture', label: 'Furniture / Home' },
+  { value: 'other', label: 'Other' },
 ] as const;
 
 const KARMA_TIERS: { value: KarmaTier; label: string }[] = [
-  { value: 0, label: 'Tier 0 — 누구나' },
-  { value: 1, label: 'Tier 1 — Regular 이상' },
-  { value: 2, label: 'Tier 2 — Trusted 이상' },
-  { value: 3, label: 'Tier 3 — Elite만' },
+  { value: 0, label: 'Tier 0 — Anyone' },
+  { value: 1, label: 'Tier 1 — Regular or above' },
+  { value: 2, label: 'Tier 2 — Trusted or above' },
+  { value: 3, label: 'Tier 3 — Elite only' },
 ];
 
 const HOODI_CHAIN_ID = 374;
@@ -90,11 +90,11 @@ export default function NewListingPage() {
       const itemMetaHash = keccak256(toHex(JSON.stringify(itemMeta))) as Hex;
 
       if (!escrowAddress) {
-        throw new Error('컨트랙트 주소가 설정되지 않았습니다. docs/deployments.md를 확인하세요.');
+        throw new Error('Contract address not configured. Check docs/deployments.md.');
       }
 
       // Step 1: On-chain registerListing with Status Network gasless-ready gas fields.
-      toast.info('지갑에서 트랜잭션을 승인하세요...');
+      toast.info('Approve the transaction in your wallet...');
       const callArgs = [BigInt(askPriceWei), requiredTier, itemMetaHash] as const;
       const data = encodeFunctionData({
         abi: bargoEscrowAbi,
@@ -117,7 +117,7 @@ export default function NewListingPage() {
         maxPriorityFeePerGas: gasFields.maxPriorityFeePerGas,
       });
 
-      toast.info('트랜잭션 확인 중...');
+      toast.info('Confirming transaction...');
 
       // Step 2: Wait for receipt + parse ListingCreated event
       const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash });
@@ -130,11 +130,11 @@ export default function NewListingPage() {
 
       const firstLog = logs[0];
       if (!firstLog) {
-        throw new Error('ListingCreated 이벤트를 찾을 수 없습니다. 트랜잭션을 확인해주세요.');
+        throw new Error('ListingCreated event not found. Check your transaction.');
       }
 
       const listingId = (firstLog.args as { listingId: Hex }).listingId;
-      toast.success('온체인 등록 완료!');
+      toast.success('On-chain registration confirmed!');
 
       // Step 3: POST to negotiation service
       setSubmitStep('service');
@@ -149,7 +149,7 @@ export default function NewListingPage() {
         onchainTxHash: txHash,
       });
 
-      toast.success('매물이 등록되었습니다!');
+      toast.success('Listing created!');
       router.push(`/listings/${result.listingId}`);
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
@@ -157,11 +157,11 @@ export default function NewListingPage() {
       }
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('User rejected') || msg.includes('user rejected')) {
-        toast.error('트랜잭션이 취소되었습니다.');
-      } else if (msg.includes('컨트랙트 주소')) {
+        toast.error('Transaction cancelled.');
+      } else if (msg.includes('Contract address')) {
         toast.error(msg);
       } else {
-        toast.error('매물 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        toast.error('Failed to create listing. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -170,16 +170,16 @@ export default function NewListingPage() {
   }
 
   function submitLabel() {
-    if (!isSubmitting) return '매물 등록';
-    if (submitStep === 'onchain') return '온체인 등록 중...';
-    if (submitStep === 'service') return '서비스 등록 중...';
-    return '등록 중...';
+    if (!isSubmitting) return 'Create listing';
+    if (submitStep === 'onchain') return 'Registering on-chain...';
+    if (submitStep === 'service') return 'Saving to service...';
+    return 'Creating...';
   }
 
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
-        <p className="text-xl font-semibold">지갑을 연결해야 매물을 등록할 수 있습니다</p>
+        <p className="text-xl font-semibold">Connect your wallet to create a listing</p>
         <WalletConnect />
       </div>
     );
@@ -188,14 +188,14 @@ export default function NewListingPage() {
   return (
     <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">매물 등록</h1>
+        <h1 className="text-2xl font-bold">Create listing</h1>
         <WalletConnect />
       </div>
 
       {chainId !== HOODI_CHAIN_ID && (
         <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
           <p className="text-sm text-amber-700 dark:text-amber-300">
-            Hoodi 네트워크 (chainId {HOODI_CHAIN_ID})로 전환해주세요.
+            Please switch to Hoodi network (chainId {HOODI_CHAIN_ID}).
           </p>
         </div>
       )}
@@ -204,12 +204,12 @@ export default function NewListingPage() {
         {/* Basic info */}
         <Card>
           <CardHeader>
-            <CardTitle>기본 정보</CardTitle>
+            <CardTitle>Basic info</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label htmlFor="title" className="text-sm font-medium">
-                제목{' '}
+                Title{' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -218,7 +218,7 @@ export default function NewListingPage() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="맥북 M1 Pro 14인치"
+                placeholder="MacBook M1 Pro 14-inch"
                 maxLength={200}
                 required
               />
@@ -226,20 +226,20 @@ export default function NewListingPage() {
 
             <div className="space-y-1">
               <label htmlFor="description" className="text-sm font-medium">
-                설명
+                Description
               </label>
               <Input
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="상태, 구성품, 기타 사항"
+                placeholder="Condition, accessories, notes"
                 maxLength={2000}
               />
             </div>
 
             <div className="space-y-1">
               <label htmlFor="category" className="text-sm font-medium">
-                카테고리
+                Category
               </label>
               <select
                 id="category"
@@ -260,12 +260,12 @@ export default function NewListingPage() {
         {/* Pricing */}
         <Card>
           <CardHeader>
-            <CardTitle>가격 설정</CardTitle>
+            <CardTitle>Pricing</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label htmlFor="ask-price" className="text-sm font-medium">
-                희망가 (공개){' '}
+                Ask price (public){' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -275,13 +275,13 @@ export default function NewListingPage() {
                 value={askPriceKrw}
                 onChange={setAskPriceKrw}
                 placeholder="800,000"
-                label="희망 판매가 (원)"
+                label="Asking price (KRW)"
               />
             </div>
 
             <div className="space-y-1">
               <label htmlFor="min-price" className="text-sm font-medium">
-                최저가 — 마지노선 (비공개){' '}
+                Floor price — reservation price (private){' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -292,11 +292,11 @@ export default function NewListingPage() {
                 onChange={setMinPriceKrw}
                 placeholder="700,000"
                 masked
-                label="최저 판매가 (원)"
+                label="Minimum sell price (KRW)"
               />
               <p className="text-sm text-muted-foreground">
-                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수
-                없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
+                Processed inside <strong>NEAR AI TEE</strong>. Counterparty never sees it. Operator
+                sees plaintext for ~15s during negotiation; auto-purged on deal completion.
               </p>
             </div>
           </CardContent>
@@ -305,17 +305,17 @@ export default function NewListingPage() {
         {/* Conditions */}
         <Card>
           <CardHeader>
-            <CardTitle>거래 조건 (비공개)</CardTitle>
+            <CardTitle>Conditions (private)</CardTitle>
           </CardHeader>
           <CardContent>
             <label htmlFor="conditions" className="text-sm font-medium block mb-2">
-              자연어 조건 입력
+              Natural-language conditions
             </label>
             <ConditionInput
               id="conditions"
               value={conditions}
               onChange={setConditions}
-              placeholder="예: 강남/송파 직거래만, 평일 19시 이후, 박스 없음"
+              placeholder="e.g. Gangnam/Songpa in-person only, weekday evenings, no box"
             />
           </CardContent>
         </Card>
@@ -323,11 +323,11 @@ export default function NewListingPage() {
         {/* Karma gating */}
         <Card>
           <CardHeader>
-            <CardTitle>Karma 요구 티어</CardTitle>
+            <CardTitle>Required Karma tier</CardTitle>
           </CardHeader>
           <CardContent>
             <label htmlFor="karma-tier" className="text-sm font-medium block mb-2">
-              최소 Karma 티어
+              Minimum Karma tier
             </label>
             <select
               id="karma-tier"
@@ -342,8 +342,8 @@ export default function NewListingPage() {
               ))}
             </select>
             <p className="text-sm text-muted-foreground mt-1.5">
-              고가 매물(50만원+)은 스마트 컨트랙트에서 Tier 2 이상만 오퍼 가능하도록 자동
-              제한됩니다.
+              High-value listings (500,000 KRW+) are automatically restricted to Tier 2+ offers by
+              the smart contract.
             </p>
           </CardContent>
         </Card>
@@ -354,7 +354,7 @@ export default function NewListingPage() {
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
-            취소
+            Cancel
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1" size="lg">
             {submitLabel()}

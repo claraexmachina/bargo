@@ -9,10 +9,10 @@ interface ListingCardProps {
 }
 
 const TIER_REQUIRED_LABEL: Record<KarmaTier, string> = {
-  0: '누구나',
+  0: 'Anyone',
   1: 'Regular+',
   2: 'Trusted+',
-  3: 'Elite만',
+  3: 'Elite only',
 };
 
 export function ListingCard({ listing }: ListingCardProps) {
@@ -42,7 +42,7 @@ export function ListingCard({ listing }: ListingCardProps) {
         <CardFooter className="flex items-center justify-between pt-0">
           <KarmaBadge tier={listing.seller.slice(0, 2) === '0x' ? 0 : 0} showLabel={false} />
           <span className="text-xs text-muted-foreground">
-            요구 티어: {TIER_REQUIRED_LABEL[listing.requiredKarmaTier]}
+            Required tier: {TIER_REQUIRED_LABEL[listing.requiredKarmaTier]}
           </span>
         </CardFooter>
       </Card>

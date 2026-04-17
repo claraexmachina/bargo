@@ -72,11 +72,11 @@ export default function NewOfferPage() {
       });
 
       if (!escrowAddress) {
-        throw new Error('컨트랙트 주소가 설정되지 않았습니다. docs/deployments.md를 확인하세요.');
+        throw new Error('Contract address not configured. Check docs/deployments.md.');
       }
 
       // Step 1: On-chain submitOffer with Status Network gasless-ready gas fields.
-      toast.info('지갑에서 트랜잭션을 승인하세요...');
+      toast.info('Approve the transaction in your wallet...');
       const rlnProofBytes = rlnProof.proof as Hex;
       const callArgs = [listingId, bidPriceBigInt, rlnProofBytes] as const;
       const data = encodeFunctionData({
@@ -100,7 +100,7 @@ export default function NewOfferPage() {
         maxPriorityFeePerGas: gasFields.maxPriorityFeePerGas,
       });
 
-      toast.info('트랜잭션 확인 중...');
+      toast.info('Confirming transaction...');
 
       // Step 2: Wait for receipt + parse OfferSubmitted event
       const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash });
@@ -113,11 +113,11 @@ export default function NewOfferPage() {
 
       const firstLog = logs[0];
       if (!firstLog) {
-        throw new Error('OfferSubmitted 이벤트를 찾을 수 없습니다. 트랜잭션을 확인해주세요.');
+        throw new Error('OfferSubmitted event not found. Check your transaction.');
       }
 
       const offerId = (firstLog.args as { offerId: Hex }).offerId;
-      toast.success('온체인 오퍼 등록 완료!');
+      toast.success('Offer registered on-chain!');
 
       // Step 3: POST to negotiation service
       setSubmitStep('service');
@@ -132,7 +132,7 @@ export default function NewOfferPage() {
         onchainTxHash: txHash,
       });
 
-      toast.success('오퍼가 제출되었습니다! 협상을 시작합니다...');
+      toast.success('Offer submitted! Starting negotiation...');
       router.push(`/deals/${result.negotiationId}?listingId=${listingId}&bid=${bidPriceKrw}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
@@ -140,15 +140,15 @@ export default function NewOfferPage() {
         console.error('[offers/new] submit error:', err);
       }
       if (msg.includes('User rejected') || msg.includes('user rejected')) {
-        toast.error('트랜잭션이 취소되었습니다.');
-      } else if (msg.includes('컨트랙트 주소')) {
+        toast.error('Transaction cancelled.');
+      } else if (msg.includes('Contract address')) {
         toast.error(msg);
       } else if (msg.includes('karma') || msg.includes('403') || msg.includes('KarmaTier')) {
-        toast.error('Karma 티어가 부족합니다. 이 매물에 오퍼할 수 없습니다.');
+        toast.error('Insufficient Karma tier. Cannot offer on this listing.');
       } else if (msg.includes('rln') || msg.includes('nullifier') || msg.includes('RLN')) {
-        toast.error('RLN 검증 실패 — 이 매물에 너무 많은 오퍼를 제출했습니다.');
+        toast.error('RLN check failed — too many offers on this listing.');
       } else {
-        toast.error('오퍼 제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        toast.error('Failed to submit offer. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -157,16 +157,16 @@ export default function NewOfferPage() {
   }
 
   function submitLabel() {
-    if (!isSubmitting) return '오퍼 제출';
-    if (submitStep === 'onchain') return '온체인 등록 중...';
-    if (submitStep === 'service') return '서비스 등록 중...';
-    return '제출 중...';
+    if (!isSubmitting) return 'Submit offer';
+    if (submitStep === 'onchain') return 'Registering on-chain...';
+    if (submitStep === 'service') return 'Saving to service...';
+    return 'Submitting...';
   }
 
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
-        <p className="text-xl font-semibold">지갑을 연결해야 오퍼를 제출할 수 있습니다</p>
+        <p className="text-xl font-semibold">Connect your wallet to submit an offer</p>
         <WalletConnect />
       </div>
     );
@@ -176,10 +176,10 @@ export default function NewOfferPage() {
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">오퍼 제출</h1>
+          <h1 className="text-2xl font-bold">Submit offer</h1>
           {listing && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              {listing.itemMeta.title} — 희망가 {formatKRW(listing.askPrice)}
+              {listing.itemMeta.title} — asking {formatKRW(listing.askPrice)}
             </p>
           )}
           {address && (
@@ -197,7 +197,7 @@ export default function NewOfferPage() {
       {chainId !== HOODI_CHAIN_ID && (
         <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
           <p className="text-sm text-amber-700 dark:text-amber-300">
-            Hoodi 네트워크 (chainId {HOODI_CHAIN_ID})로 전환해주세요.
+            Please switch to Hoodi network (chainId {HOODI_CHAIN_ID}).
           </p>
         </div>
       )}
@@ -206,12 +206,12 @@ export default function NewOfferPage() {
         {/* Bid price */}
         <Card>
           <CardHeader>
-            <CardTitle>제안 가격</CardTitle>
+            <CardTitle>Bid price</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label htmlFor="bid-price" className="text-sm font-medium">
-                제안가 (공개){' '}
+                Bid price (public){' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -221,13 +221,13 @@ export default function NewOfferPage() {
                 value={bidPriceKrw}
                 onChange={setBidPriceKrw}
                 placeholder="720,000"
-                label="제안 가격 (원)"
+                label="Bid price (KRW)"
               />
             </div>
 
             <div className="space-y-1">
               <label htmlFor="max-price" className="text-sm font-medium">
-                최대가 — 마지노선 (비공개){' '}
+                Ceiling price — reservation price (private){' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -238,11 +238,11 @@ export default function NewOfferPage() {
                 onChange={setMaxPriceKrw}
                 placeholder="750,000"
                 masked
-                label="최대 구매가 (원)"
+                label="Maximum buy price (KRW)"
               />
               <p className="text-sm text-muted-foreground">
-                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수
-                없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
+                Processed inside <strong>NEAR AI TEE</strong>. Counterparty never sees it. Operator
+                sees plaintext for ~15s during negotiation; auto-purged on deal completion.
               </p>
             </div>
           </CardContent>
@@ -251,25 +251,25 @@ export default function NewOfferPage() {
         {/* Conditions */}
         <Card>
           <CardHeader>
-            <CardTitle>거래 조건 (비공개)</CardTitle>
+            <CardTitle>Conditions (private)</CardTitle>
           </CardHeader>
           <CardContent>
             <label htmlFor="buyer-conditions" className="text-sm font-medium block mb-2">
-              자연어 조건 입력
+              Natural-language conditions
             </label>
             <ConditionInput
               id="buyer-conditions"
               value={conditions}
               onChange={setConditions}
-              placeholder="예: 강남 가능, 토요일만, 카드결제 가능"
+              placeholder="e.g. Gangnam area OK, weekends only, card payment accepted"
             />
           </CardContent>
         </Card>
 
         {/* RLN notice */}
         <div className="rounded-md bg-muted/50 border px-4 py-3 text-xs text-muted-foreground">
-          RLN (Rate Limiting Nullifier) proof가 자동으로 첨부됩니다. 동일 매물에 5분 내 3회 초과
-          오퍼 시 거부됩니다 (스팸 방지).
+          An RLN (Rate Limiting Nullifier) proof is attached automatically. More than 3 offers on
+          the same listing within 5 minutes will be rejected (anti-spam).
         </div>
 
         {/* Bottom bar */}
@@ -278,7 +278,7 @@ export default function NewOfferPage() {
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
-            취소
+            Cancel
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1" size="lg">
             {submitLabel()}

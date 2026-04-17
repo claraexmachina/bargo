@@ -16,7 +16,7 @@ function BotVsBotAnimation() {
     <div
       className="flex items-center justify-center gap-4 py-6"
       role="status"
-      aria-label="NEAR AI TEE 안에서 협상 중"
+      aria-label="Negotiating inside NEAR AI TEE"
     >
       {/* Seller bot bubble */}
       <div className="flex flex-col items-center gap-2 animate-bounce-left">
@@ -28,7 +28,7 @@ function BotVsBotAnimation() {
           🤖
         </div>
         <div className="rounded-xl bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300 max-w-[80px] text-center">
-          판매자봇
+          Seller bot
         </div>
       </div>
 
@@ -49,7 +49,7 @@ function BotVsBotAnimation() {
           🤖
         </div>
         <div className="rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-1.5 text-xs text-purple-700 dark:text-purple-300 max-w-[80px] text-center">
-          구매자봇
+          Buyer bot
         </div>
       </div>
     </div>
@@ -63,10 +63,10 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
     return (
       <div className="text-center space-y-3">
         <BotVsBotAnimation />
-        <p className="text-sm font-medium">NEAR AI TEE 안에서 협상 중...</p>
+        <p className="text-sm font-medium">Negotiating inside NEAR AI TEE...</p>
         <p className="text-xs text-muted-foreground">
-          가격·조건은 NEAR AI TEE 안에서 LLM이 처리합니다. 상대방은 절대 볼 수 없고, 운영자는 합의
-          중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
+          Price and conditions are processed inside NEAR AI TEE. Counterparty never sees them.
+          Operator sees plaintext for ~15s during negotiation; auto-purged on deal completion.
         </p>
       </div>
     );
@@ -79,12 +79,14 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
           ❌
         </div>
         <p className="text-lg font-semibold text-destructive">
-          협상 실패 — 조건을 조정해서 다시 시도해 보세요
+          Negotiation failed — adjust your conditions and try again
         </p>
-        <p className="text-sm text-muted-foreground">어느 조건이 충돌했는지는 공개되지 않습니다.</p>
+        <p className="text-sm text-muted-foreground">
+          Which conditions conflicted is not disclosed.
+        </p>
         {onRetry && (
           <Button onClick={onRetry} variant="outline" className="mt-2">
-            다시 시도
+            Try again
           </Button>
         )}
       </div>
@@ -102,31 +104,33 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
           <span className="text-2xl" aria-hidden="true">
             🎉
           </span>
-          <p className="text-lg font-semibold text-green-600 dark:text-green-400">협상 성공!</p>
+          <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+            Agreement reached!
+          </p>
         </div>
 
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              합의 가격
+              Agreed price
             </p>
             <p className="text-2xl font-bold">{formatKRW(agreedPrice)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              만남 장소
+              Meetup location
             </p>
             <p className="font-medium">{agreedConditions.location}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              만남 시간
+              Meetup time
             </p>
             <p className="font-medium">{formatMeetTime(agreedConditions.meetTimeIso)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              결제 방식
+              Payment method
             </p>
             <p className="font-medium">{agreedConditions.payment}</p>
           </div>
@@ -136,15 +140,13 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
 
         {state === 'agreement' && onLockEscrow && (
           <Button onClick={() => onLockEscrow(agreedPrice)} className="w-full" size="lg">
-            에스크로 락업
+            Lock escrow
           </Button>
         )}
 
         {state === 'settled' && (
           <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
-            <p className="text-sm text-green-700 dark:text-green-300 font-medium">
-              에스크로 락업 완료
-            </p>
+            <p className="text-sm text-green-700 dark:text-green-300 font-medium">Escrow locked</p>
           </div>
         )}
       </div>

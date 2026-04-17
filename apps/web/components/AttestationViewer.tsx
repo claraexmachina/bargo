@@ -23,16 +23,16 @@ function CopyButton({ value, label }: { value: string; label: string }) {
         navigator.clipboard
           .writeText(value)
           .then(() => {
-            toast.success('복사 완료');
+            toast.success('Copied');
           })
           .catch(() => {
-            toast.error('복사 실패');
+            toast.error('Copy failed');
           });
       }}
       className="ml-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
       aria-label={label}
     >
-      복사
+      Copy
     </button>
   );
 }
@@ -49,12 +49,12 @@ function AttestationBundleExpando({ dealId }: { dealId: DealId }) {
         className="text-xs text-primary underline underline-offset-2"
         aria-expanded={open}
       >
-        {open ? '전체 번들 닫기' : '전체 증명 번들 보기'}
+        {open ? 'Hide full bundle' : 'View full attestation bundle'}
       </button>
       {open && (
         <div className="mt-2 rounded-md border bg-muted/30 p-3 overflow-auto max-h-64">
-          {isLoading && <p className="text-xs text-muted-foreground">불러오는 중...</p>}
-          {error && <p className="text-xs text-destructive">번들을 불러올 수 없습니다.</p>}
+          {isLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
+          {error && <p className="text-xs text-destructive">Could not load bundle.</p>}
           {data && (
             <pre className="text-xs whitespace-pre-wrap break-all">
               {JSON.stringify(data, null, 2)}
@@ -80,10 +80,10 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
     navigator.clipboard
       .writeText(cmd)
       .then(() => {
-        toast.success('복사 완료');
+        toast.success('Copied');
       })
       .catch(() => {
-        toast.error('복사 실패');
+        toast.error('Copy failed');
       });
   }
 
@@ -103,30 +103,30 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
       {/* Fields */}
       <div className="space-y-2 text-sm">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-muted-foreground shrink-0">모델</span>
+          <span className="text-muted-foreground shrink-0">Model</span>
           <span className="font-mono text-xs break-all">{modelId}</span>
         </div>
 
         <div className="flex items-start justify-between gap-2">
-          <span className="text-muted-foreground shrink-0">완료 ID</span>
+          <span className="text-muted-foreground shrink-0">Completion ID</span>
           <span className="font-mono text-xs break-all">
             {truncateHex(completionId, 6)}
-            <CopyButton value={completionId} label="완료 ID 복사" />
+            <CopyButton value={completionId} label="Copy completion ID" />
           </span>
         </div>
 
         <div className="flex items-start justify-between gap-2">
-          <span className="text-muted-foreground shrink-0">증명 해시</span>
+          <span className="text-muted-foreground shrink-0">Attestation hash</span>
           <span className="font-mono text-xs break-all">
             {truncateHex(nearAiAttestationHash)}
-            <CopyButton value={nearAiAttestationHash} label="증명 해시 복사" />{' '}
+            <CopyButton value={nearAiAttestationHash} label="Copy attestation hash" />{' '}
             <a
               href={hoodiUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="underline underline-offset-2 hover:text-foreground"
             >
-              익스플로러
+              Explorer
             </a>
           </span>
         </div>
@@ -142,7 +142,7 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
           onClick={handleCopyVerifyScript}
           className="w-full rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
         >
-          심사위원용 검증 스크립트 복사
+          Copy judge verification script
         </button>
         <a
           href="https://github.com/claraexmachina/bargo#attestation-verification"
@@ -150,14 +150,15 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
           rel="noopener noreferrer"
           className="text-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
         >
-          GitHub 검증 가이드
+          GitHub verification guide
         </a>
       </div>
 
       {/* Explainer */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        이 거래는 NEAR AI의 Intel TDX + NVIDIA GPU TEE 안에서 처리되었습니다. 위 해시는 Hoodi
-        컨트랙트에 기록되어 있으며, 검증 스크립트로 누구나 TEE 무결성을 재확인할 수 있습니다.
+        This deal was processed inside NEAR AI's Intel TDX + NVIDIA GPU TEE. The hash above is
+        recorded on the Hoodi contract and can be independently verified by anyone using the
+        verification script.
       </p>
     </div>
   );
