@@ -72,16 +72,17 @@ export default function NewListingPage() {
 
       const minPriceWei = krwToWei(rawMin);
 
-      // We need a deterministic listing ID placeholder for AAD before we have the real one.
-      // Use a temp placeholder; TEE accepts zeros for offerId.
-      const tempListingId = '0x0000000000000000000000000000000000000000000000000000000000000000' as ListingId;
+      // Listing-side blobs are sealed before the server assigns a real listingId.
+      // We use zeros32 as a stable placeholder — the TEE recognises this convention.
+      // See PLAN §3.5: AAD = listingId (32 bytes); offerId NOT in AAD.
+      const LISTING_PLACEHOLDER_ID = '0x0000000000000000000000000000000000000000000000000000000000000000' as ListingId;
 
       // Step 1: Seal reservation price + conditions client-side
-      const encMinSell = sealPrice(teePubkeyData.pubkey, minPriceWei, tempListingId);
+      const encMinSell = sealPrice(teePubkeyData.pubkey, minPriceWei, LISTING_PLACEHOLDER_ID);
       const encSellerConditions = sealConditions(
         teePubkeyData.pubkey,
         rawCond,
-        tempListingId,
+        LISTING_PLACEHOLDER_ID,
       );
 
       // Build itemMeta hash for on-chain

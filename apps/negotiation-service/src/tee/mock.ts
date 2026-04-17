@@ -112,19 +112,12 @@ function uint8ArrayToHex(bytes: Uint8Array): `0x${string}` {
   return toHex(bytes);
 }
 
-// Build 64-byte AAD from listingId + offerId (both bytes32)
-function buildAad(listingId: `0x${string}`, offerId: `0x${string}`): Uint8Array {
-  const aad = new Uint8Array(64);
-  aad.set(hexToUint8Array(listingId), 0);
-  aad.set(hexToUint8Array(offerId), 32);
-  return aad;
-}
-
-// Build 64-byte AAD for listing creation (offerId unknown → 32 zero bytes)
-function buildAadListingOnly(listingId: `0x${string}`): Uint8Array {
-  const aad = new Uint8Array(64);
-  aad.set(hexToUint8Array(listingId), 0);
-  return aad;
+// Build 32-byte AAD = listingId bytes only.
+// All 4 blobs (encMinSell, encSellerConditions, encMaxBuy, encBuyerConditions)
+// use this convention. offerId binding is at the REST transport layer.
+// See PLAN §3.5 (updated).
+function buildAad(listingId: `0x${string}`): Uint8Array {
+  return hexToUint8Array(listingId);
 }
 
 export function createMockTeeClient(
@@ -147,23 +140,24 @@ export function createMockTeeClient(
 
   return {
     async negotiate(req: NegotiateRequest): Promise<TeeAttestation> {
-      const { listingId, offerId, nonce } = req;
+      const { listingId, offerId, nonce } = req; // offerId used in attestation payloads only
 
-      // Decrypt min_sell (AAD: listingId + zeros, since it was encrypted without offerId)
+      // Decrypt min_sell and max_buy — both use AAD = listingId (32 bytes).
+      // See PLAN §3.5 (updated): offerId is NOT part of AEAD.
       let minSellStr: string;
       let maxBuyStr: string;
       try {
         const minSellBytes = open({
           privateKey: mockTeeSk,
           blob: req.encMinSell,
-          aad: buildAadListingOnly(listingId),
+          aad: buildAad(listingId),
         });
         minSellStr = new TextDecoder().decode(minSellBytes);
 
         const maxBuyBytes = open({
           privateKey: mockTeeSk,
           blob: req.encMaxBuy,
-          aad: buildAad(listingId, offerId),
+          aad: buildAad(listingId),
         });
         maxBuyStr = new TextDecoder().decode(maxBuyBytes);
       } catch {
@@ -181,14 +175,14 @@ export function createMockTeeClient(
         return { payload: failPayload, result: 'fail', signature, signerAddress };
       }
 
-      // Decrypt seller and buyer conditions (failures are non-fatal — treat as empty)
+      // Decrypt seller and buyer conditions — both use AAD = listingId (32 bytes).
       let sellerCondStr = '';
       let buyerCondStr = '';
       try {
         const sellerCondBytes = open({
           privateKey: mockTeeSk,
           blob: req.encSellerConditions,
-          aad: buildAadListingOnly(listingId),
+          aad: buildAad(listingId),
         });
         sellerCondStr = new TextDecoder().decode(sellerCondBytes);
       } catch { /* no preference */ }
@@ -196,7 +190,7 @@ export function createMockTeeClient(
         const buyerCondBytes = open({
           privateKey: mockTeeSk,
           blob: req.encBuyerConditions,
-          aad: buildAad(listingId, offerId),
+          aad: buildAad(listingId),
         });
         buyerCondStr = new TextDecoder().decode(buyerCondBytes);
       } catch { /* no preference */ }

@@ -38,6 +38,17 @@ def _derive_key(shared: bytes, eph_pub: bytes, tee_pub: bytes) -> bytes:
     return hkdf.derive(shared)
 
 
+def build_listing_aad(listing_id_hex: str) -> bytes:
+    """Build 32-byte AAD from a 0x-prefixed listingId hex string.
+
+    All 4 blobs (encMinSell, encSellerConditions, encMaxBuy, encBuyerConditions)
+    use this convention. Mirrors packages/crypto/src/seal.ts::buildListingAad.
+    See PLAN §3.5 (updated): AAD = listingId (32 bytes), offerId NOT in AAD.
+    """
+    raw = bytes.fromhex(listing_id_hex.removeprefix("0x"))
+    return raw.ljust(32, b"\x00")[:32]
+
+
 def open_blob(blob: EncryptedBlob, aad: bytes, tee_sk: bytes) -> bytes:
     """Decrypt *blob* and return plaintext bytes.
 

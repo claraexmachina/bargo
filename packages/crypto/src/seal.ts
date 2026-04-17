@@ -37,9 +37,27 @@ export interface SealParams {
   teePubkey: Hex;
   // plaintext bytes to encrypt
   plaintext: Uint8Array;
-  // additional authenticated data: listingId (32b) || offerId (32b), 64 bytes total
-  // If offerId is not yet known (listing creation), use 64 zero bytes
+  // additional authenticated data: listingId (32 bytes).
+  // See PLAN §3.5 (updated): AAD = listingId only. offerId binding is
+  // handled at the REST transport layer, not inside AEAD.
   aad: Uint8Array;
+}
+
+/**
+ * Build the 32-byte AAD for ALL blob types (min_sell, max_buy,
+ * sellerConditions, buyerConditions) — always just the listingId bytes.
+ *
+ * Usage:
+ *   const aad = buildListingAad(listingId);
+ *   sealPrice(teePubkey, wei, listingId) uses this internally.
+ */
+export function buildListingAad(listingId: Hex): Uint8Array {
+  const raw = listingId.slice(2);
+  const bytes = new Uint8Array(raw.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(raw.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
 }
 
 export function seal({ teePubkey, plaintext, aad }: SealParams): EncryptedBlob {

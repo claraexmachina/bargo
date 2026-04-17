@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { x25519 } from '@noble/curves/ed25519';
 import { randomBytes } from '@noble/ciphers/webcrypto';
 import { open } from '../src/open.js';
-import { seal } from '../src/seal.js';
+import { seal, buildListingAad } from '../src/seal.js';
 import { parse, serialize } from '../src/envelope.js';
 import type { Hex } from '@haggle/shared';
 import goldenFixture from './fixtures/golden-envelope.json' assert { type: 'json' };
@@ -13,21 +13,6 @@ function bytesToHex(b: Uint8Array): Hex {
     .join('')}`;
 }
 
-function makeAad(listingId: Hex, offerId: Hex): Uint8Array {
-  function hexToBytes(h: Hex): Uint8Array {
-    const raw = h.slice(2);
-    const b = new Uint8Array(raw.length / 2);
-    for (let i = 0; i < b.length; i++) {
-      b[i] = parseInt(raw.slice(i * 2, i * 2 + 2), 16);
-    }
-    return b;
-  }
-  const aad = new Uint8Array(64);
-  aad.set(hexToBytes(listingId), 0);
-  aad.set(hexToBytes(offerId), 32);
-  return aad;
-}
-
 describe('seal / open roundtrip', () => {
   it('seals and opens a price plaintext', () => {
     const teeSk = randomBytes(32);
@@ -36,8 +21,7 @@ describe('seal / open roundtrip', () => {
     const teeSkHex = bytesToHex(teeSk);
 
     const listingId: Hex = `0x${'aa'.repeat(32)}`;
-    const offerId: Hex = `0x${'bb'.repeat(32)}`;
-    const aad = makeAad(listingId, offerId);
+    const aad = buildListingAad(listingId); // 32 bytes
 
     const plaintext = new TextEncoder().encode('700000000000000000000000');
     const blob = seal({ teePubkey: teePkHex, plaintext, aad });
@@ -52,7 +36,7 @@ describe('seal / open roundtrip', () => {
     const teePkHex = bytesToHex(teePk);
     const teeSkHex = bytesToHex(teeSk);
 
-    const aad = new Uint8Array(64);
+    const aad = buildListingAad(`0x${'aa'.repeat(32)}`);
     const plaintext = new TextEncoder().encode('700000000000000000000000');
     const blob = seal({ teePubkey: teePkHex, plaintext, aad });
 
@@ -70,8 +54,8 @@ describe('seal / open roundtrip', () => {
     const teePkHex = bytesToHex(teePk);
     const teeSkHex = bytesToHex(teeSk);
 
-    const aad = makeAad(`0x${'aa'.repeat(32)}`, `0x${'bb'.repeat(32)}`);
-    const wrongAad = makeAad(`0x${'cc'.repeat(32)}`, `0x${'dd'.repeat(32)}`);
+    const aad = buildListingAad(`0x${'aa'.repeat(32)}`);
+    const wrongAad = buildListingAad(`0x${'cc'.repeat(32)}`);
 
     const plaintext = new TextEncoder().encode('700000000000000000000000');
     const blob = seal({ teePubkey: teePkHex, plaintext, aad });
@@ -103,15 +87,15 @@ describe('envelope serialize / parse', () => {
 describe('golden envelope fixture', () => {
   it('decrypts the fixed fixture (cross-language reference)', () => {
     // This fixture must also be decryptable by Python crypto.py.
-    const { teeSk, listingId, offerId, plaintext, blob } = goldenFixture as {
+    // AAD = listingId (32 bytes). No offerId. See PLAN §3.5 (updated).
+    const { teeSk, listingId, plaintext, blob } = goldenFixture as {
       teeSk: Hex;
       listingId: Hex;
-      offerId: Hex;
       plaintext: string;
       blob: { v: 1; ephPub: Hex; nonce: Hex; ct: Hex };
     };
 
-    const aad = makeAad(listingId, offerId);
+    const aad = buildListingAad(listingId); // 32 bytes
     const recovered = open({ privateKey: teeSk, blob, aad });
     expect(new TextDecoder().decode(recovered)).toBe(plaintext);
   });
