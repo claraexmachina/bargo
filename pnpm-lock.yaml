@@ -23,12 +23,18 @@ importers:
 
   apps/negotiation-service:
     dependencies:
+      '@bargo/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@bargo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@fastify/cors':
         specifier: ^10.0.2
         version: 10.1.0
+      '@noble/curves':
+        specifier: 1.8.1
+        version: 1.8.1
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.10.0
