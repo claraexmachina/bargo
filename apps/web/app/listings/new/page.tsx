@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { keccak256, toBytes, encodeAbiParameters, parseAbiParameters } from 'viem';
+import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import { WalletConnect } from '@/components/WalletConnect';
 import { ConditionInput } from '@/components/ConditionInput';
@@ -11,10 +10,9 @@ import { PriceInput } from '@/components/PriceInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTeePubkey, usePostListing } from '@/lib/api';
-import { sealPrice, sealConditions } from '@/lib/encrypt';
+import { usePostListing } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
-import type { KarmaTier, ListingId } from '@haggle/shared';
+import type { KarmaTier } from '@haggle/shared';
 
 const CATEGORIES = [
   { value: 'electronics', label: '전자기기' },
@@ -33,15 +31,13 @@ const KARMA_TIERS: { value: KarmaTier; label: string }[] = [
 export default function NewListingPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { data: teePubkeyData } = useTeePubkey();
   const postListing = usePostListing();
-  const { writeContractAsync } = useWriteContract();
 
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [category, setCategory] = React.useState<typeof CATEGORIES[number]['value']>('electronics');
   const [askPriceKrw, setAskPriceKrw] = React.useState('');
-  const [minPriceKrw, setMinPriceKrw] = React.useState(''); // reservation — never sent plaintext
+  const [minPriceKrw, setMinPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
   const [requiredTier, setRequiredTier] = React.useState<KarmaTier>(0);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -49,7 +45,6 @@ export default function NewListingPage() {
   const canSubmit =
     isConnected &&
     !!address &&
-    !!teePubkeyData &&
     title.trim().length > 0 &&
     askPriceKrw.length > 0 &&
     minPriceKrw.length > 0 &&
@@ -57,54 +52,39 @@ export default function NewListingPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || !address || !teePubkeyData) return;
+    if (!canSubmit || !address) return;
 
     setIsSubmitting(true);
+
+    // Capture sensitive values to locals and clear state BEFORE POST.
+    // This prevents plaintext lingering in React state on error.
+    const rawMin = minPriceKrw;
+    const rawCond = conditions;
+    setMinPriceKrw('');
+    setConditions('');
+
     try {
       const askPriceWei = krwToWei(askPriceKrw);
-
-      // Capture sensitive values to locals and clear state BEFORE sealing.
-      // This prevents raw plaintext lingering in React state if seal* throws.
-      const rawMin = minPriceKrw;
-      const rawCond = conditions;
-      setMinPriceKrw('');
-      setConditions('');
-
       const minPriceWei = krwToWei(rawMin);
 
-      // Listing-side blobs are sealed before the server assigns a real listingId.
-      // We use zeros32 as a stable placeholder — the TEE recognises this convention.
-      // See PLAN §3.5: AAD = listingId (32 bytes); offerId NOT in AAD.
-      const LISTING_PLACEHOLDER_ID = '0x0000000000000000000000000000000000000000000000000000000000000000' as ListingId;
+      const itemMeta = {
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        images: [] as string[],
+      };
 
-      // Step 1: Seal reservation price + conditions client-side
-      const encMinSell = sealPrice(teePubkeyData.pubkey, minPriceWei, LISTING_PLACEHOLDER_ID);
-      const encSellerConditions = sealConditions(
-        teePubkeyData.pubkey,
-        rawCond,
-        LISTING_PLACEHOLDER_ID,
-      );
-
-      // Build itemMeta hash for on-chain
-      const itemMeta = { title: title.trim(), description: description.trim(), category, images: [] as string[] };
-      const itemMetaHash = keccak256(toBytes(JSON.stringify(itemMeta)));
-
-      // Step 2: POST /listing to get listingId
       const result = await postListing.mutateAsync({
         seller: address,
         askPrice: askPriceWei,
         requiredKarmaTier: requiredTier,
         itemMeta,
-        encMinSell,
-        encSellerConditions,
+        plaintextMinSell: minPriceWei,
+        plaintextSellerConditions: rawCond.trim().slice(0, 2048),
       });
 
       toast.success('매물이 등록되었습니다!');
 
-      // Step 3: Write on-chain registerListing (if contract ABI is available)
-      // Using haggleEscrowAbi — currently empty stub from packages/shared.
-      // When contract-lead ships ABI, this will go live.
-      // For now, we skip the contract call and rely on service-side tx hash.
       if (result.onchainTxHash && result.onchainTxHash !== '0x') {
         toast.success('온체인 등록 완료');
       }
@@ -132,7 +112,7 @@ export default function NewListingPage() {
   return (
     <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">매물 등록 (New Listing)</h1>
+        <h1 className="text-2xl font-bold">매물 등록</h1>
         <WalletConnect />
       </div>
 
@@ -178,7 +158,7 @@ export default function NewListingPage() {
                 id="category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value as typeof category)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -219,10 +199,11 @@ export default function NewListingPage() {
                 onChange={setMinPriceKrw}
                 placeholder="700,000"
                 masked
-                label="최저 판매가 — 암호화되어 TEE에만 전달 (원)"
+                label="최저 판매가 (원)"
               />
-              <p className="text-xs text-muted-foreground">
-                이 가격은 <strong>암호화되어 TEE로만 전송</strong>됩니다. 서버·상대방·운영자도 알 수 없습니다.
+              <p className="text-sm text-muted-foreground">
+                이 가격은 <strong>NEAR AI TEE 안에서만 LLM에 전달</strong>됩니다.
+                상대방은 볼 수 없고, 서비스는 거래 완료 후 자동 삭제합니다.
               </p>
             </div>
           </CardContent>
@@ -259,7 +240,7 @@ export default function NewListingPage() {
               id="karma-tier"
               value={requiredTier}
               onChange={(e) => setRequiredTier(Number(e.target.value) as KarmaTier)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {KARMA_TIERS.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -267,8 +248,8 @@ export default function NewListingPage() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              고가 매물(50만원+)은 Tier 2 이상만 오퍼 가능하도록 컨트랙트가 강제합니다.
+            <p className="text-sm text-muted-foreground mt-1.5">
+              고가 매물(50만원+)은 스마트 컨트랙트에서 Tier 2 이상만 오퍼 가능하도록 자동 제한됩니다.
             </p>
           </CardContent>
         </Card>

@@ -11,8 +11,7 @@ import { ConditionInput } from '@/components/ConditionInput';
 import { PriceInput } from '@/components/PriceInput';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useListing, usePostOffer, useTeePubkey } from '@/lib/api';
-import { sealPrice, sealConditions } from '@/lib/encrypt';
+import { useListing, usePostOffer } from '@/lib/api';
 import { buildRLNProof } from '@/lib/rln';
 import { krwToWei, formatKRW } from '@/lib/format';
 
@@ -24,65 +23,57 @@ export default function NewOfferPage() {
   const { address, isConnected } = useAccount();
 
   const { data: listing } = useListing(listingId);
-  const { data: teePubkeyData } = useTeePubkey();
   const postOffer = usePostOffer();
 
   // Pre-fill bid from query param when retrying after a failed negotiation
   const initialBid = searchParams.get('bid') ?? '';
   const [bidPriceKrw, setBidPriceKrw] = React.useState(initialBid);
-  const [maxPriceKrw, setMaxPriceKrw] = React.useState(''); // reservation — never sent plain
+  const [maxPriceKrw, setMaxPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const canSubmit =
     isConnected &&
     !!address &&
-    !!teePubkeyData &&
     bidPriceKrw.length > 0 &&
     maxPriceKrw.length > 0 &&
     !isSubmitting;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || !address || !teePubkeyData) return;
+    if (!canSubmit || !address) return;
 
     setIsSubmitting(true);
+
+    // Capture sensitive values to locals and clear state BEFORE POST.
+    // This prevents plaintext lingering in React state on error.
+    const rawMax = maxPriceKrw;
+    const rawCond = conditions;
+    setMaxPriceKrw('');
+    setConditions('');
+
     try {
       const bidPriceWei = krwToWei(bidPriceKrw);
       const bidPriceBigInt = BigInt(bidPriceWei);
-
-      // Capture sensitive values to locals and clear state BEFORE sealing.
-      // This prevents raw plaintext lingering in React state if seal* throws.
-      const rawMax = maxPriceKrw;
-      const rawCond = conditions;
-      setMaxPriceKrw('');
-      setConditions('');
-
       const maxPriceWei = krwToWei(rawMax);
 
-      // Step 1: Seal max price + conditions
-      const encMaxBuy = sealPrice(teePubkeyData.pubkey, maxPriceWei, listingId);
-      const encBuyerConditions = sealConditions(teePubkeyData.pubkey, rawCond, listingId);
-
-      // Step 2: Build RLN proof (stub)
+      // Build RLN proof (unchanged from V1)
       const rlnProof = buildRLNProof({
         listingId,
         bidPriceWei: bidPriceBigInt,
         walletAddress: address,
       });
 
-      // Step 3: POST /offer
       const result = await postOffer.mutateAsync({
         buyer: address,
         listingId,
         bidPrice: bidPriceWei,
-        encMaxBuy,
-        encBuyerConditions,
+        plaintextMaxBuy: maxPriceWei,
+        plaintextBuyerConditions: rawCond.trim().slice(0, 2048),
         rlnProof,
       });
 
       toast.success('오퍼가 제출되었습니다! 협상을 시작합니다...');
-      // Pass listingId and bidPrice so deals page can pre-fill retry form
       router.push(`/deals/${result.negotiationId}?listingId=${listingId}&bid=${bidPriceKrw}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
@@ -162,10 +153,11 @@ export default function NewOfferPage() {
                 onChange={setMaxPriceKrw}
                 placeholder="750,000"
                 masked
-                label="최대 구매가 — 암호화되어 TEE에만 전달 (원)"
+                label="최대 구매가 (원)"
               />
-              <p className="text-xs text-muted-foreground">
-                이 가격은 <strong>암호화되어 TEE로만 전송</strong>됩니다. 판매자·운영자도 알 수 없습니다.
+              <p className="text-sm text-muted-foreground">
+                이 가격은 <strong>NEAR AI TEE 안에서만 LLM에 전달</strong>됩니다.
+                상대방은 볼 수 없고, 서비스는 거래 완료 후 자동 삭제합니다.
               </p>
             </div>
           </CardContent>

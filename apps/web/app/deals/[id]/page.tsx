@@ -2,15 +2,14 @@
 
 import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
-import type { DealId, TeeAgreement, Hex } from '@haggle/shared';
+import type { DealId, Hex } from '@haggle/shared';
 import { useNegotiationStatus } from '@/lib/api';
 import { NegotiationStatus } from '@/components/NegotiationStatus';
 import { MeetupQR } from '@/components/MeetupQR';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatKRW } from '@/lib/format';
 
 // Dynamic import for canvas-confetti (client only, ~3KB)
 let confetti: ((opts: object) => void) | null = null;
@@ -30,12 +29,10 @@ export default function DealPage() {
   const retryBid = searchParams.get('bid') ?? '';
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
-  const { writeContractAsync } = useWriteContract();
 
   const [escrowLocked, setEscrowLocked] = React.useState(false);
   const [meetupComplete, setMeetupComplete] = React.useState(false);
   const [myQrSignature, setMyQrSignature] = React.useState<Hex | null>(null);
-  const [otherQrScanned, setOtherQrScanned] = React.useState(false);
   const [isTerminal, setIsTerminal] = React.useState(false);
 
   const {
@@ -66,7 +63,7 @@ export default function DealPage() {
       const sig = await signMessageAsync({ message: msg });
       setMyQrSignature(sig);
       toast.success('QR 서명 완료. 상대방 QR을 스캔하세요.');
-    } catch (err) {
+    } catch {
       toast.error('서명 실패');
     }
   }
@@ -82,12 +79,10 @@ export default function DealPage() {
       // In production: call lockEscrow(dealId, {value: agreedPriceWei})
       // ABI stub is empty — when contract-lead ships ABI this activates.
       // For demo: simulate success
+      void agreedPrice; // used via on-chain call in production
       setEscrowLocked(true);
       toast.success('에스크로 락업 완료! 만남 QR을 생성하세요.');
-    } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[deals] lockEscrow error:', err);
-      }
+    } catch {
       toast.error('락업에 실패했습니다. 지갑을 확인하고 다시 시도해주세요.');
     }
   }
@@ -96,12 +91,11 @@ export default function DealPage() {
     try {
       const parsed = JSON.parse(payload) as { dealId: string; signature: string };
       if (parsed.dealId === dealId) {
-        setOtherQrScanned(true);
+        setIsTerminal(true);
         toast.success('상대방 QR 확인 완료! 거래 완료 처리 중...');
         // In production: submit confirmMeetup tx with both signatures
         setTimeout(() => {
           setMeetupComplete(true);
-          // Confetti!
           if (confetti) {
             confetti({
               particleCount: 150,
@@ -112,10 +106,10 @@ export default function DealPage() {
           }
         }, 800);
       } else {
-        toast.error('QR dealId가 일치하지 않습니다');
+        toast.error('다른 거래의 QR입니다. 상대방에게 현재 거래 QR을 요청하세요.');
       }
     } catch {
-      toast.error('QR 형식이 잘못되었습니다');
+      toast.error('QR 형식이 올바르지 않습니다. 상대방에게 QR을 다시 요청하세요.');
     }
   }
 
@@ -186,13 +180,13 @@ export default function DealPage() {
       {escrowLocked && !meetupComplete && (
         <Card>
           <CardHeader>
-            <CardTitle>만남 인증 (Meetup Verification)</CardTitle>
+            <CardTitle>만남 인증</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!myQrSignature ? (
               <div className="text-center space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  만남 인증 QR을 생성하세요. 서로의 QR을 스캔해야 에스크로가 릴리즈됩니다.
+                  만남 인증 QR을 생성하세요. 서로의 QR을 스캔해야 에스크로가 정산됩니다.
                 </p>
                 <Button onClick={handleSignMeetupQR} className="w-full">
                   만남 QR 생성하기
@@ -209,10 +203,10 @@ export default function DealPage() {
         </Card>
       )}
 
-      {/* No-show report (visible after lockedUntil — simplified: always show when locked) */}
+      {/* No-show report */}
       {escrowLocked && !meetupComplete && (
         <div className="rounded-md border border-destructive/30 p-4 space-y-2">
-          <p className="text-sm font-medium text-destructive">노쇼 신고 (No-show Report)</p>
+          <p className="text-sm font-medium text-destructive">노쇼 신고</p>
           <p className="text-xs text-muted-foreground">
             24시간 내 만남 인증이 없으면 노쇼로 신고할 수 있습니다.
             신고 시 상대방 Karma가 하락하고 에스크로가 환불됩니다.

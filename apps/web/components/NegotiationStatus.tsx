@@ -1,9 +1,9 @@
 'use client';
 
-import type { GetStatusResponse, TeeAgreement, AgreedConditions } from '@haggle/shared';
+import type { GetStatusResponse } from '@haggle/shared';
 import { Button } from '@/components/ui/button';
+import { AttestationViewer } from '@/components/AttestationViewer';
 import { formatKRW, formatMeetTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 interface NegotiationStatusProps {
   status: GetStatusResponse;
@@ -18,11 +18,10 @@ function BotVsBotAnimation() {
     <div
       className="flex items-center justify-center gap-4 py-6"
       role="status"
-      aria-label="TEE 안에서 협상 중"
+      aria-label="NEAR AI TEE 안에서 협상 중"
     >
       {/* Seller bot bubble */}
       <div className="flex flex-col items-center gap-2 animate-bounce-left">
-        {/* Accent dot — blinks to simulate "sending message" */}
         <span
           className="h-2 w-2 rounded-full bg-blue-500 animate-accent-blink-a mb-1"
           aria-hidden="true"
@@ -42,7 +41,6 @@ function BotVsBotAnimation() {
 
       {/* Buyer bot bubble */}
       <div className="flex flex-col items-center gap-2 animate-bounce-right">
-        {/* Accent dot — offset by 0.6s for alternating effect */}
         <span
           className="h-2 w-2 rounded-full bg-purple-500 animate-accent-blink-b mb-1"
           aria-hidden="true"
@@ -56,16 +54,16 @@ function BotVsBotAnimation() {
   );
 }
 
-export function NegotiationStatus({ status, onRetry, onLockEscrow, listingId, previousBid }: NegotiationStatusProps) {
+export function NegotiationStatus({ status, onRetry, onLockEscrow }: NegotiationStatusProps) {
   const { state, attestation } = status;
 
   if (state === 'queued' || state === 'running') {
     return (
       <div className="text-center space-y-3">
         <BotVsBotAnimation />
-        <p className="text-sm font-medium">TEE 안에서 협상 중</p>
+        <p className="text-sm font-medium">NEAR AI TEE 안에서 협상 중...</p>
         <p className="text-xs text-muted-foreground">
-          가격·조건은 암호화된 상태로 처리됩니다 — 아무도 볼 수 없습니다
+          가격·조건은 TEE 안에서만 처리됩니다 — 상대방도, 서비스도 볼 수 없습니다
         </p>
       </div>
     );
@@ -75,9 +73,9 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow, listingId, pr
     return (
       <div className="text-center space-y-4 py-4">
         <div className="text-4xl" aria-hidden="true">❌</div>
-        <p className="text-lg font-semibold text-destructive">협상 실패 — 조건 불일치</p>
+        <p className="text-lg font-semibold text-destructive">협상 실패 — 조건을 조정해서 다시 시도해 보세요</p>
         <p className="text-sm text-muted-foreground">
-          조건을 수정해서 다시 시도해 보세요.
+          어느 조건이 충돌했는지는 공개되지 않습니다.
         </p>
         {onRetry && (
           <Button onClick={onRetry} variant="outline" className="mt-2">
@@ -88,9 +86,10 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow, listingId, pr
     );
   }
 
-  if ((state === 'agreement' || state === 'settled') && attestation?.result === 'agreement') {
-    const payload = attestation.payload as TeeAgreement;
-    const agreedConditions = payload.agreedConditions as AgreedConditions;
+  if (state === 'agreement' || state === 'settled') {
+    if (!attestation) return null;
+
+    const { agreedPrice, agreedConditions } = attestation;
 
     return (
       <div className="space-y-4 py-2">
@@ -102,7 +101,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow, listingId, pr
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">합의 가격</p>
-            <p className="text-2xl font-bold">{formatKRW(payload.agreedPrice)}</p>
+            <p className="text-2xl font-bold">{formatKRW(agreedPrice)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">만남 장소</p>
@@ -118,17 +117,15 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow, listingId, pr
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          TEE attestation 서명 완료. 판매자·구매자 모두 상대방의 마지노선은 알 수 없습니다.
-        </p>
+        <AttestationViewer attestation={attestation} />
 
         {state === 'agreement' && onLockEscrow && (
           <Button
-            onClick={() => onLockEscrow(payload.agreedPrice)}
+            onClick={() => onLockEscrow(agreedPrice)}
             className="w-full"
             size="lg"
           >
-            에스크로 락업 (Lock Escrow)
+            에스크로 락업
           </Button>
         )}
 
