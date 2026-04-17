@@ -35,7 +35,7 @@ const LISTING_ID = '0x1111111111111111111111111111111111111111111111111111111111
 
 describe('buildRLNProof', () => {
   beforeEach(() => {
-    delete storage.rln_sk_0xabc;
+    storage.rln_sk_0xabc = '';
   });
 
   it('returns correct RLNProof shape', () => {
