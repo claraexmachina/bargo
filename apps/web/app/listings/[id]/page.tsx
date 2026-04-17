@@ -16,10 +16,10 @@ import * as React from 'react';
 import { useAccount, useReadContract } from 'wagmi';
 
 const REQUIRED_TIER_LABEL: Record<KarmaTier, string> = {
-  0: '누구나 오퍼 가능',
-  1: 'Regular (Tier 1) 이상',
-  2: 'Trusted (Tier 2) 이상',
-  3: 'Elite (Tier 3)만',
+  0: 'Anyone can offer',
+  1: 'Regular (Tier 1) or above',
+  2: 'Trusted (Tier 2) or above',
+  3: 'Elite (Tier 3) only',
 };
 
 // Demo tier map — used when KarmaReader is not yet deployed (matches Seed.s.sol)
@@ -65,9 +65,9 @@ export default function ListingDetailPage() {
   if (error || !listing) {
     return (
       <div className="text-center py-20 space-y-4">
-        <p className="text-muted-foreground">매물을 찾을 수 없습니다.</p>
+        <p className="text-muted-foreground">Listing not found.</p>
         <Button asChild variant="outline">
-          <Link href="/listings">목록으로</Link>
+          <Link href="/listings">Back to listings</Link>
         </Button>
       </div>
     );
@@ -93,7 +93,7 @@ export default function ListingDetailPage() {
       <div className="flex items-start justify-between gap-3">
         <h1 className="text-2xl font-bold leading-tight">{listing.itemMeta.title}</h1>
         <Badge variant={listing.status === 'open' ? 'default' : 'secondary'}>
-          {listing.status === 'open' ? '판매중' : listing.status}
+          {listing.status === 'open' ? 'For sale' : listing.status}
         </Badge>
       </div>
 
@@ -103,7 +103,7 @@ export default function ListingDetailPage() {
       {/* Seller info */}
       <Card>
         <CardContent className="pt-4 space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">판매자 (Seller)</p>
+          <p className="text-sm font-medium text-muted-foreground">Seller</p>
           <div className="flex items-center gap-2 flex-wrap">
             <code className="text-xs bg-muted px-2 py-1 rounded">
               {listing.seller.slice(0, 10)}...{listing.seller.slice(-4)}
@@ -116,7 +116,7 @@ export default function ListingDetailPage() {
       {/* Description */}
       <Card>
         <CardContent className="pt-4 space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">설명</p>
+          <p className="text-sm font-medium text-muted-foreground">Description</p>
           <p className="text-sm">{listing.itemMeta.description || '—'}</p>
         </CardContent>
       </Card>
@@ -124,10 +124,10 @@ export default function ListingDetailPage() {
       {/* Karma requirement */}
       <Card>
         <CardContent className="pt-4 space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">오퍼 조건 (Offer Requirement)</p>
+          <p className="text-sm font-medium text-muted-foreground">Offer requirement</p>
           <p className="text-sm">{REQUIRED_TIER_LABEL[listing.requiredKarmaTier]}</p>
           <p className="text-xs text-muted-foreground">
-            요구 티어를 충족하지 못하면 컨트랙트가 거부합니다.
+            The contract will reject offers that don't meet the required tier.
           </p>
         </CardContent>
       </Card>
@@ -138,7 +138,7 @@ export default function ListingDetailPage() {
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
         <Button variant="outline" onClick={() => router.back()} className="flex-1">
-          뒤로
+          Back
         </Button>
 
         {!address ? (
@@ -147,25 +147,24 @@ export default function ListingDetailPage() {
           </div>
         ) : isSeller ? (
           <Button disabled className="flex-1">
-            내 매물
+            Your listing
           </Button>
         ) : listing.status !== 'open' ? (
           <Button disabled className="flex-1">
-            협상 종료
+            Negotiation closed
           </Button>
         ) : !meetsKarmaTier ? (
           <div className="flex-1 space-y-1">
             <Button disabled className="w-full">
-              Tier {listing.requiredKarmaTier} 이상만 오퍼 가능
+              Tier {listing.requiredKarmaTier}+ required to offer
             </Button>
             <p className="text-xs text-center text-muted-foreground">
-              현재 Tier {myTier}입니다. Karma를 쌓아 Tier {listing.requiredKarmaTier}에 도달하면
-              오퍼할 수 있어요.
+              You are Tier {myTier}. Earn more Karma to reach Tier {listing.requiredKarmaTier}.
             </p>
           </div>
         ) : (
           <Button asChild className="flex-1" size="lg">
-            <Link href={`/offers/new/${listing.id}`}>오퍼하기 →</Link>
+            <Link href={`/offers/new/${listing.id}`}>Make offer →</Link>
           </Button>
         )}
       </div>

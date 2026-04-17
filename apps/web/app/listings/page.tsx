@@ -33,7 +33,8 @@ const DEMO_LISTINGS: ListingPublic[] = [
     requiredKarmaTier: 1,
     itemMeta: {
       title: '맥북 M1 Pro 14인치 (2021)',
-      description: '상태 최상. 박스·충전기·보증서 있음. 강남/송파 직거래 선호.',
+      description:
+        'Excellent condition. Box, charger, and warranty included. Prefer in-person meetup Gangnam/Songpa.',
       category: 'electronics',
       images: [],
     },
@@ -46,8 +47,8 @@ const DEMO_LISTINGS: ListingPublic[] = [
     askPrice: (150_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 0,
     itemMeta: {
-      title: '나이키 에어맥스 270 (270mm)',
-      description: '3회 착용. 박스 없음. 어디서나 직거래 가능.',
+      title: 'Nike Air Max 270 (270mm)',
+      description: 'Worn 3 times. No box. In-person meetup anywhere.',
       category: 'fashion',
       images: [],
     },
@@ -60,8 +61,8 @@ const DEMO_LISTINGS: ListingPublic[] = [
     askPrice: (600_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 2,
     itemMeta: {
-      title: '다이슨 V15 무선청소기',
-      description: '6개월 사용. AS 잔여기간 있음. Tier 2+ 만 오퍼 가능 (고가 매물).',
+      title: 'Dyson V15 Cordless Vacuum',
+      description: 'Used 6 months. Warranty remaining. Tier 2+ only (high-value item).',
       category: 'other',
       images: [],
     },
@@ -77,11 +78,11 @@ export default async function ListingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">매물 목록</h1>
-          <p className="text-sm text-muted-foreground">{listings.length}개 매물</p>
+          <h1 className="text-2xl font-bold">Listings</h1>
+          <p className="text-sm text-muted-foreground">{listings.length} listings</p>
         </div>
         <Button asChild size="sm">
-          <Link href="/listings/new">+ 매물 등록</Link>
+          <Link href="/listings/new">+ Create listing</Link>
         </Button>
       </div>
 
@@ -90,9 +91,9 @@ export default async function ListingsPage() {
           <p className="text-4xl" aria-hidden="true">
             📦
           </p>
-          <p className="text-muted-foreground">아직 등록된 매물이 없습니다.</p>
+          <p className="text-muted-foreground">No listings yet.</p>
           <Button asChild>
-            <Link href="/listings/new">첫 매물 등록하기</Link>
+            <Link href="/listings/new">Create your first listing</Link>
           </Button>
         </div>
       ) : (

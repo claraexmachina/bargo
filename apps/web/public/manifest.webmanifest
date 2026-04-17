@@ -1,7 +1,7 @@
 {
   "name": "Bargo",
   "short_name": "Bargo",
-  "description": "AI 중고거래 협상 — TEE × Status Network",
+  "description": "TEE-mediated P2P negotiation — NEAR AI × Status Network",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

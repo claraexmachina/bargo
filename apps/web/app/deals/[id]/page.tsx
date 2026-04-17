@@ -59,28 +59,28 @@ export default function DealPage() {
       const msg = `Bargo meetup confirm: dealId=${dealId}`;
       const sig = await signMessageAsync({ message: msg });
       setMyQrSignature(sig);
-      toast.success('QR 서명 완료. 상대방 QR을 스캔하세요.');
+      toast.success("QR signed. Scan the counterparty's QR code.");
     } catch {
-      toast.error('서명 실패');
+      toast.error('Signing failed');
     }
   }
 
   async function handleLockEscrow(agreedPrice: string) {
     if (!address) {
-      toast.error('지갑을 연결하세요');
+      toast.error('Connect your wallet');
       return;
     }
 
-    toast.info('에스크로 락업 중...');
+    toast.info('Locking escrow...');
     try {
       // In production: call lockEscrow(dealId, {value: agreedPriceWei})
       // ABI stub is empty — when contract-lead ships ABI this activates.
       // For demo: simulate success
       void agreedPrice; // used via on-chain call in production
       setEscrowLocked(true);
-      toast.success('에스크로 락업 완료! 만남 QR을 생성하세요.');
+      toast.success('Escrow locked! Generate your meetup QR code.');
     } catch {
-      toast.error('락업에 실패했습니다. 지갑을 확인하고 다시 시도해주세요.');
+      toast.error('Escrow lock failed. Check your wallet and try again.');
     }
   }
 
@@ -88,7 +88,7 @@ export default function DealPage() {
     try {
       const parsed = JSON.parse(payload) as { dealId: string; signature: string };
       if (parsed.dealId === dealId) {
-        toast.success('상대방 QR 확인 완료! 거래 완료 처리 중...');
+        toast.success('Counterparty QR verified! Finalizing deal...');
         // In production: submit confirmMeetup tx with both signatures
         setTimeout(() => {
           setMeetupComplete(true);
@@ -102,10 +102,10 @@ export default function DealPage() {
           }
         }, 800);
       } else {
-        toast.error('다른 거래의 QR입니다. 상대방에게 현재 거래 QR을 요청하세요.');
+        toast.error('QR belongs to a different deal. Ask your counterparty for the correct QR.');
       }
     } catch {
-      toast.error('QR 형식이 올바르지 않습니다. 상대방에게 QR을 다시 요청하세요.');
+      toast.error('Invalid QR format. Ask your counterparty to regenerate their QR.');
     }
   }
 
@@ -121,9 +121,9 @@ export default function DealPage() {
   if (error || !status) {
     return (
       <div className="text-center py-20 space-y-4">
-        <p className="text-muted-foreground">협상 정보를 불러올 수 없습니다.</p>
+        <p className="text-muted-foreground">Could not load negotiation status.</p>
         <Button variant="outline" onClick={() => router.push('/listings')}>
-          목록으로
+          Back to listings
         </Button>
       </div>
     );
@@ -137,11 +137,11 @@ export default function DealPage() {
           🎊
         </p>
         <div>
-          <h1 className="text-2xl font-bold">거래 완료!</h1>
-          <p className="text-muted-foreground mt-1">Karma +1 적립</p>
+          <h1 className="text-2xl font-bold">Deal complete!</h1>
+          <p className="text-muted-foreground mt-1">Karma +1 earned</p>
         </div>
         <Button asChild size="lg">
-          <a href="/listings">다른 매물 보기</a>
+          <a href="/listings">Browse more listings</a>
         </Button>
       </div>
     );
@@ -150,7 +150,7 @@ export default function DealPage() {
   return (
     <div className="space-y-6 pb-8">
       <div>
-        <h1 className="text-2xl font-bold">협상 상태</h1>
+        <h1 className="text-2xl font-bold">Negotiation status</h1>
         <p className="text-xs text-muted-foreground font-mono mt-0.5">{dealId.slice(0, 18)}...</p>
       </div>
 
@@ -174,16 +174,17 @@ export default function DealPage() {
       {escrowLocked && !meetupComplete && (
         <Card>
           <CardHeader>
-            <CardTitle>만남 인증</CardTitle>
+            <CardTitle>Meetup verification</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!myQrSignature ? (
               <div className="text-center space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  만남 인증 QR을 생성하세요. 서로의 QR을 스캔해야 에스크로가 정산됩니다.
+                  Generate your meetup QR code. Both parties must scan each other's QR to settle the
+                  escrow.
                 </p>
                 <Button onClick={handleSignMeetupQR} className="w-full">
-                  만남 QR 생성하기
+                  Generate meetup QR
                 </Button>
               </div>
             ) : (
@@ -196,17 +197,17 @@ export default function DealPage() {
       {/* No-show report */}
       {escrowLocked && !meetupComplete && (
         <div className="rounded-md border border-destructive/30 p-4 space-y-2">
-          <p className="text-sm font-medium text-destructive">노쇼 신고</p>
+          <p className="text-sm font-medium text-destructive">No-show report</p>
           <p className="text-xs text-muted-foreground">
-            24시간 내 만남 인증이 없으면 노쇼로 신고할 수 있습니다. 신고 시 상대방 Karma가 하락하고
-            에스크로가 환불됩니다.
+            If meetup verification is not completed within 24 hours, you can file a no-show report.
+            This will reduce the counterparty's Karma and refund the escrow.
           </p>
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => toast.info('노쇼 신고는 락업 후 24시간 이후 가능합니다')}
+            onClick={() => toast.info('No-show reporting is available 24 hours after escrow lock')}
           >
-            노쇼 신고
+            Report no-show
           </Button>
         </div>
       )}

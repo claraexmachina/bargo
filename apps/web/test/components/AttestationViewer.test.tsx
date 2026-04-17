@@ -65,13 +65,13 @@ describe('AttestationViewer', () => {
 
   it('renders copy button for attestation hash', () => {
     render(<AttestationViewer attestation={SAMPLE_ATTESTATION} />);
-    const copyButtons = screen.getAllByRole('button', { name: /복사/i });
+    const copyButtons = screen.getAllByRole('button', { name: /copy/i });
     expect(copyButtons.length).toBeGreaterThan(0);
   });
 
   it('renders the verify script copy button', () => {
     render(<AttestationViewer attestation={SAMPLE_ATTESTATION} />);
-    expect(screen.getByText(/심사위원용 검증 스크립트 복사/)).toBeInTheDocument();
+    expect(screen.getByText(/copy judge verification script/i)).toBeInTheDocument();
   });
 
   it('renders the explainer text about TEE', () => {
@@ -88,10 +88,10 @@ describe('AttestationBundleExpando error path', () => {
 
     render(<AttestationViewer attestation={SAMPLE_ATTESTATION} />);
 
-    const expandoButton = screen.getByRole('button', { name: /전체 증명 번들 보기/ });
+    const expandoButton = screen.getByRole('button', { name: /view full attestation bundle/i });
     fireEvent.click(expandoButton);
 
-    expect(screen.getByText(/번들을 불러올 수 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/could not load bundle/i)).toBeInTheDocument();
 
     bundleResult = defaultBundle;
   });

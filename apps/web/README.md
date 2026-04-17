@@ -26,13 +26,13 @@ There is no `NEXT_PUBLIC_MOCK_TEE_PUBKEY` — V2 uses NEAR AI Cloud (no client-s
 
 ## Demo steps
 
-1. Open `/listings/new` — enter title, ask price e.g. 800,000, min price e.g. 700,000, natural-language conditions
+1. Open `/listings/new` — enter title, ask price e.g. 800,000, floor price e.g. 700,000, natural-language conditions
 2. Submit → redirects to `/listings/:id`
-3. Open `/offers/new/:listingId` on a second browser profile — enter bid e.g. 720,000, max e.g. 750,000
+3. Open `/offers/new/:listingId` on a second browser profile — enter bid e.g. 720,000, ceiling e.g. 750,000
 4. Submit → redirects to `/deals/:id`
 5. `/deals/:id` polls status, shows bot-vs-bot animation → agreement (NEAR AI qwen3-30b in TEE)
-6. `AttestationViewer` shows: model ID, attestation hash, hoodiscan.status.network explorer link, "Verify" script
-7. Click "에스크로 락업" → meetup QR flow
+6. `AttestationViewer` shows: model ID, attestation hash, hoodiscan.status.network explorer link, verify script
+7. Click "Lock escrow" → meetup QR flow
 8. Paste other party's QR → confetti
 
 ## Architecture
@@ -57,6 +57,6 @@ lib/utils.ts    — cn() tailwind-merge helper
 ## Privacy model (UI copy)
 
 The app truthfully communicates the V2 trust model:
-- "NEAR AI TEE 안에서 LLM이 처리합니다. 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다."
+- "Processed inside NEAR AI TEE. Operator sees plaintext for ~15s during negotiation; auto-purged on deal completion."
 - Counterparties never see each other's reservation price or raw conditions.
 - See `docs/threat-model.md` for the full 10-row threat table.
