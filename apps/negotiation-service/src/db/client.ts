@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { EncryptedBlob, ListingId, OfferId, DealId, TeeAttestation, KarmaTier } from '@haggle/shared';
+import type { ListingId, OfferId, DealId, NearAiAttestation, KarmaTier } from '@haggle/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -14,8 +14,8 @@ export interface ListingRow {
   ask_price: string;
   required_karma_tier: number;
   item_meta_json: string;
-  enc_min_sell_json: string;
-  enc_seller_conditions_json: string;
+  plaintext_min_sell: string | null;
+  plaintext_seller_conditions: string | null;
   status: string;
   onchain_tx_hash: string | null;
   created_at: number;
@@ -26,8 +26,8 @@ export interface OfferRow {
   listing_id: Buffer;
   buyer: string;
   bid_price: string;
-  enc_max_buy_json: string;
-  enc_buyer_conditions_json: string;
+  plaintext_max_buy: string | null;
+  plaintext_buyer_conditions: string | null;
   rln_nullifier: Buffer;
   rln_epoch: number;
   status: string;
@@ -40,7 +40,14 @@ export interface NegotiationRow {
   offer_id: Buffer;
   state: string;
   attestation_json: string | null;
+  near_ai_attestation_hash: string | null;
+  agreed_conditions_hash: string | null;
+  agreed_conditions_json: string | null;
+  model_id: string | null;
+  completion_id: string | null;
+  attestation_bundle_path: string | null;
   onchain_tx_hash: string | null;
+  failure_reason: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -72,11 +79,11 @@ export function closeDb(): void {
 
 // --- Helper: hex string ↔ Buffer (for BLOB storage) ---
 
-function hexToBuffer(hex: `0x${string}`): Buffer {
+export function hexToBuffer(hex: `0x${string}`): Buffer {
   return Buffer.from(hex.slice(2), 'hex');
 }
 
-function bufferToHex(buf: Buffer): `0x${string}` {
+export function bufferToHex(buf: Buffer): `0x${string}` {
   return `0x${buf.toString('hex')}`;
 }
 
@@ -88,14 +95,15 @@ export interface InsertListingParams {
   askPrice: string;
   requiredKarmaTier: KarmaTier;
   itemMetaJson: string;
-  encMinSellJson: string;
-  encSellerConditionsJson: string;
+  plaintextMinSell: string;
+  plaintextSellerConditions: string;
 }
 
 export function insertListing(db: Database.Database, params: InsertListingParams): void {
   const stmt = db.prepare<[Buffer, string, string, number, string, string, string, number]>(`
     INSERT INTO listings
-      (id, seller, ask_price, required_karma_tier, item_meta_json, enc_min_sell_json, enc_seller_conditions_json, status, created_at)
+      (id, seller, ask_price, required_karma_tier, item_meta_json,
+       plaintext_min_sell, plaintext_seller_conditions, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)
   `);
   stmt.run(
@@ -104,8 +112,8 @@ export function insertListing(db: Database.Database, params: InsertListingParams
     params.askPrice,
     params.requiredKarmaTier,
     params.itemMetaJson,
-    params.encMinSellJson,
-    params.encSellerConditionsJson,
+    params.plaintextMinSell,
+    params.plaintextSellerConditions,
     Math.floor(Date.now() / 1000),
   );
 }
@@ -145,8 +153,8 @@ export interface InsertOfferParams {
   listingId: ListingId;
   buyer: string;
   bidPrice: string;
-  encMaxBuyJson: string;
-  encBuyerConditionsJson: string;
+  plaintextMaxBuy: string;
+  plaintextBuyerConditions: string;
   rlnNullifier: `0x${string}`;
   rlnEpoch: number;
 }
@@ -154,7 +162,8 @@ export interface InsertOfferParams {
 export function insertOffer(db: Database.Database, params: InsertOfferParams): void {
   const stmt = db.prepare<[Buffer, Buffer, string, string, string, string, Buffer, number, number]>(`
     INSERT INTO offers
-      (id, listing_id, buyer, bid_price, enc_max_buy_json, enc_buyer_conditions_json, rln_nullifier, rln_epoch, status, created_at)
+      (id, listing_id, buyer, bid_price, plaintext_max_buy, plaintext_buyer_conditions,
+       rln_nullifier, rln_epoch, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
   `);
   stmt.run(
@@ -162,8 +171,8 @@ export function insertOffer(db: Database.Database, params: InsertOfferParams): v
     hexToBuffer(params.listingId),
     params.buyer,
     params.bidPrice,
-    params.encMaxBuyJson,
-    params.encBuyerConditionsJson,
+    params.plaintextMaxBuy,
+    params.plaintextBuyerConditions,
     hexToBuffer(params.rlnNullifier),
     params.rlnEpoch,
     Math.floor(Date.now() / 1000),
@@ -182,10 +191,6 @@ export function updateOfferStatus(db: Database.Database, id: OfferId, status: st
 
 // --- RLN nullifier operations ---
 
-/**
- * Records a nullifier use for the given epoch. Returns the new count.
- * Uses INSERT OR IGNORE + UPDATE to atomically increment.
- */
 export function recordRlnNullifier(
   db: Database.Database,
   nullifier: `0x${string}`,
@@ -254,20 +259,61 @@ export function updateNegotiationState(
   db: Database.Database,
   id: DealId,
   state: string,
-  attestation?: TeeAttestation,
-  onchainTxHash?: string,
+  options?: {
+    attestation?: NearAiAttestation;
+    onchainTxHash?: string;
+    failureReason?: string;
+  },
 ): void {
-  const stmt = db.prepare<[string, string | null, string | null, number, Buffer]>(`
+  const stmt = db.prepare<[string, string | null, string | null, string | null, number, Buffer]>(`
     UPDATE negotiations
-    SET state = ?, attestation_json = ?, onchain_tx_hash = ?, updated_at = ?
+    SET state = ?, attestation_json = ?, onchain_tx_hash = ?, failure_reason = ?, updated_at = ?
     WHERE id = ?
   `);
   stmt.run(
     state,
-    attestation ? JSON.stringify(attestation) : null,
-    onchainTxHash ?? null,
+    options?.attestation ? JSON.stringify(options.attestation) : null,
+    options?.onchainTxHash ?? null,
+    options?.failureReason ?? null,
     Math.floor(Date.now() / 1000),
     hexToBuffer(id),
+  );
+}
+
+export interface UpdateNegotiationAttestationParams {
+  agreedConditionsHash: string;
+  nearAiAttestationHash: string;
+  agreedConditionsJson: string;
+  modelId: string;
+  completionId: string;
+  attestationBundlePath: string;
+}
+
+export function updateNegotiationAttestation(
+  db: Database.Database,
+  negotiationId: DealId,
+  params: UpdateNegotiationAttestationParams,
+): void {
+  const stmt = db.prepare<[string, string, string, string, string, string, number, Buffer]>(`
+    UPDATE negotiations
+    SET near_ai_attestation_hash = ?,
+        agreed_conditions_hash = ?,
+        agreed_conditions_json = ?,
+        model_id = ?,
+        completion_id = ?,
+        attestation_bundle_path = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  stmt.run(
+    params.nearAiAttestationHash,
+    params.agreedConditionsHash,
+    params.agreedConditionsJson,
+    params.modelId,
+    params.completionId,
+    params.attestationBundlePath,
+    Math.floor(Date.now() / 1000),
+    hexToBuffer(negotiationId),
   );
 }
 
@@ -283,6 +329,3 @@ export function nextCounter(db: Database.Database, key: string): number {
   if (!row) throw new Error(`counter upsert failed for key: ${key}`);
   return row.value;
 }
-
-// --- Re-export buffer helpers for use in routes ---
-export { hexToBuffer, bufferToHex };

@@ -1,12 +1,9 @@
 // POST /listing
-// Registers a new listing off-chain (encrypted blobs only).
-// The frontend submits the actual on-chain tx separately via registerListing().
-// Once the tx confirms, the frontend should call POST /attestation-receipt (or a future
-// PATCH /listing/:id endpoint) to record the onchain_tx_hash.
+// Registers a new listing with plaintext reservation data (V2 — no encryption).
+// GET /listings + GET /listing/:id return public fields only (plaintext reservation never exposed).
 //
 // listingId computation:
 //   keccak256(abiEncodePacked(['address','uint256','uint256'], [seller, askPrice, nonce]))
-// where nonce is a monotonic counter from the DB (per-seller counter).
 
 import type { FastifyInstance } from 'fastify';
 import { keccak256, encodePacked } from 'viem';
@@ -25,8 +22,7 @@ export async function listingRoutes(
   app: FastifyInstance,
   opts: { db: Database.Database },
 ) {
-  // GET /listings — public listing feed. Returns only public fields; encrypted
-  // reservation blobs are NEVER included.
+  // GET /listings — public listing feed. Plaintext reservation columns never returned.
   app.get('/listings', async (request, reply) => {
     const q = request.query as { limit?: string; offset?: string };
     const limit = Math.min(Math.max(Number(q.limit ?? 50), 1), 100);
@@ -73,7 +69,7 @@ export async function listingRoutes(
 
     const body = result.data;
 
-    // Compute a per-seller monotonic nonce to avoid ID collisions across restarts
+    // Per-seller monotonic nonce to avoid ID collisions across restarts
     const nonce = nextCounter(opts.db, `listing:${body.seller}`);
 
     const listingId = keccak256(
@@ -83,23 +79,20 @@ export async function listingRoutes(
       ),
     );
 
-    // Store encrypted blobs — plaintext never written to DB
     insertListing(opts.db, {
       id: listingId,
       seller: body.seller,
       askPrice: body.askPrice,
       requiredKarmaTier: body.requiredKarmaTier,
       itemMetaJson: JSON.stringify(body.itemMeta),
-      // Redact enc* fields from logs — stored as JSON strings in DB
-      encMinSellJson: JSON.stringify(body.encMinSell),
-      encSellerConditionsJson: JSON.stringify(body.encSellerConditions),
+      plaintextMinSell: body.plaintextMinSell,
+      plaintextSellerConditions: body.plaintextSellerConditions,
     });
 
     app.log.info({ listingId, seller: body.seller }, 'listing registered');
 
     return reply.code(201).send({
       listingId,
-      // onchainTxHash is null — frontend submits the tx and calls back with hash
       onchainTxHash: null,
     });
   });

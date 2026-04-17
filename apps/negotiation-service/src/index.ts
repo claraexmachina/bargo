@@ -3,34 +3,34 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
 import { getDb, closeDb } from './db/client.js';
-import { createTeeClient } from './tee/client.js';
-import { createMockTeeClient } from './tee/mock.js';
 import { createChainClient } from './chain/read.js';
 import { registerRoutes } from './routes/index.js';
+import { runStartupAttestationCheck } from './nearai/attestation.js';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const app = Fastify({
   logger: {
     level: 'info',
-    // Redact enc* fields and rlnProof.proof from all log output (PLAN §8 guardrails)
+    // Redact plaintext reservation values from all log output (PLAN_V2 §4 threat model)
     redact: {
-      paths: ['*.encMinSell', '*.encMaxBuy', '*.encSellerConditions', '*.encBuyerConditions', '*.rlnProof.proof'],
+      paths: [
+        '*.plaintextMinSell',
+        '*.plaintextMaxBuy',
+        '*.plaintextSellerConditions',
+        '*.plaintextBuyerConditions',
+      ],
       censor: '[REDACTED]',
     },
   },
 });
 
 async function bootstrap() {
-  // Ensure DB directory exists
+  // Ensure DB and attestation directories exist
   mkdirSync(dirname(config.dbPath), { recursive: true });
+  mkdirSync(config.attestationDir, { recursive: true });
 
   const db = getDb(config.dbPath);
-
-  const tee = config.mockTee
-    ? createMockTeeClient(config.mockTeeSk!, config.mockTeeSignerSk!)
-    : createTeeClient(config.teeUrl!);
-
   const chainClient = createChainClient(config.hoodiRpcUrl);
 
   await app.register(cors, {
@@ -39,19 +39,33 @@ async function bootstrap() {
 
   await registerRoutes(app, {
     db,
-    tee,
     chain: {
       client: chainClient,
       karmaReaderAddress: config.karmaReaderAddress,
       haggleEscrowAddress: config.haggleEscrowAddress,
+      rpcUrl: config.hoodiRpcUrl,
     },
+    nearAi: config.nearAi,
+    relayerPrivateKey: config.relayerPrivateKey,
+    haggleEscrowAddress: config.haggleEscrowAddress,
+    attestationDir: config.attestationDir,
   });
 
   const address = await app.listen({ port: config.port, host: '0.0.0.0' });
-  app.log.info({ address, mockTee: config.mockTee }, 'negotiation-service started');
+  app.log.info({ address, model: config.nearAi.model }, 'negotiation-service started');
+
+  // Phase-0 acceptance check: verify NEAR AI attestation endpoint shape
+  await runStartupAttestationCheck({
+    model: config.nearAi.model,
+    apiKey: config.nearAi.apiKey,
+    baseURL: config.nearAi.baseURL,
+    logger: {
+      warn: (obj, msg) => app.log.warn(obj, msg),
+      info: (obj, msg) => app.log.info(obj, msg),
+    },
+  });
 }
 
-// Graceful shutdown
 async function shutdown(signal: string) {
   app.log.info({ signal }, 'shutting down');
   await app.close();

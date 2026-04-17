@@ -1,20 +1,65 @@
 // Routes integration tests — uses Fastify's .inject() (no real HTTP).
-// TEE client and chain reads are stubbed.
+// runNegotiation (engine) and chain reads are stubbed via vi.mock.
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { keccak256, toBytes, toHex, encodePacked } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
 import { registerRoutes } from '../src/routes/index.js';
-import type { TeeClient, NegotiateRequest } from '../src/tee/client.js';
-import type { TeeAttestation, TeeAgreement, GetTeePubkeyResponse, EncryptedBlob, KarmaTier } from '@haggle/shared';
+import type { KarmaTier } from '@haggle/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// --- Mock engine ---
+vi.mock('../src/negotiate/engine.js', () => ({
+  runNegotiation: vi.fn().mockResolvedValue({
+    kind: 'agreement',
+    attestation: {
+      dealId: '0x' + '00'.repeat(32),
+      listingId: '0x' + '01'.repeat(32),
+      offerId: '0x' + '02'.repeat(32),
+      agreedPrice: '750000',
+      agreedConditions: { location: 'gangnam', meetTimeIso: '2026-04-20T19:00:00+09:00', payment: 'cash' },
+      modelId: 'qwen3-30b',
+      completionId: 'chatcmpl-test',
+      nonce: '0x' + 'aa'.repeat(32),
+      nearAiAttestationHash: '0x' + 'bb'.repeat(32),
+      attestationBundleUrl: '/attestation/0x' + '00'.repeat(32),
+      ts: 1_700_000_000,
+    },
+    bundle: {
+      quote: '0x' + 'cc'.repeat(4),
+      gpu_evidence: '0x' + 'dd'.repeat(4),
+      signing_key: '0x' + 'ee'.repeat(4),
+      signed_response: {
+        model: 'qwen3-30b',
+        nonce: '0x' + 'aa'.repeat(32),
+        completion_id: 'chatcmpl-test',
+        timestamp: 1_700_000_000,
+      },
+      signature: '0x' + 'ff'.repeat(4),
+    },
+  }),
+}));
+
+// --- Mock relayer ---
+vi.mock('../src/chain/relayer.js', () => ({
+  submitSettlement: vi.fn().mockResolvedValue('0x' + 'ab'.repeat(32)),
+}));
+
+// --- Mock attestation save ---
+vi.mock('../src/nearai/attestation.js', () => ({
+  saveAttestationBundle: vi.fn().mockReturnValue('/tmp/test.json'),
+  loadAttestationBundle: vi.fn().mockReturnValue(null),
+  fetchAttestation: vi.fn(),
+  computeNonce: vi.fn(),
+  hashBundle: vi.fn(),
+  canonicalizeBundle: vi.fn(),
+  runStartupAttestationCheck: vi.fn(),
+}));
 
 // --- Helpers ---
 
@@ -27,61 +72,6 @@ function buildDb(): Database.Database {
   return db;
 }
 
-// Fixed mock signer key for tests
-const SIGNER_SK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
-const signerAccount = privateKeyToAccount(SIGNER_SK);
-
-async function buildMockTeeAttestation(
-  req: NegotiateRequest,
-  result: 'agreement' | 'fail' = 'agreement',
-): Promise<TeeAttestation> {
-  const ts = Math.floor(Date.now() / 1000);
-  const payload: TeeAgreement = {
-    listingId: req.listingId,
-    offerId: req.offerId,
-    agreedPrice: '750000',
-    agreedConditions: { location: 'gangnam', meetTimeIso: '2026-04-20T19:00:00+09:00', payment: 'cash' },
-    modelId: 'mock-tee@test',
-    enclaveId: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-    ts,
-    nonce: req.nonce,
-  };
-  const canonical = JSON.stringify(payload, Object.keys(payload).sort());
-  const signature = await signerAccount.signMessage({ message: canonical });
-  return { payload, result, signature, signerAddress: signerAccount.address };
-}
-
-// Stub TEE client
-function makeMockTee(overrides?: Partial<TeeClient>): TeeClient {
-  return {
-    async negotiate(req) {
-      return buildMockAttestation(req);
-    },
-    async getPubkey() {
-      return {
-        pubkey: '0x' + '00'.repeat(32),
-        enclaveId: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-        modelId: 'mock-tee@test',
-        signerAddress: signerAccount.address,
-        whitelistedAt: 1_700_000_000,
-      };
-    },
-    async health() {
-      return {
-        ok: true,
-        enclaveId: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-        modelId: 'mock-tee@test',
-      };
-    },
-    ...overrides,
-  };
-}
-
-async function buildMockAttestation(req: NegotiateRequest): Promise<TeeAttestation> {
-  return buildMockTeeAttestation(req, 'agreement');
-}
-
-// Stub chain deps — canOffer returns true by default
 function makeChainDeps(overrides?: {
   canOffer?: boolean;
   tier?: KarmaTier;
@@ -91,7 +81,6 @@ function makeChainDeps(overrides?: {
   const tier = overrides?.tier ?? (0 as KarmaTier);
   const active = overrides?.activeNegotiations ?? 0;
 
-  // We mock the actual functions by mocking the module
   return {
     client: {
       readContract: vi.fn().mockImplementation(({ functionName }: { functionName: string }) => {
@@ -103,34 +92,62 @@ function makeChainDeps(overrides?: {
     } as unknown as import('../src/chain/read.js').createChainClient extends (...args: infer _) => infer R ? R : never,
     karmaReaderAddress: '0x0000000000000000000000000000000000000001' as const,
     haggleEscrowAddress: '0x0000000000000000000000000000000000000002' as const,
+    rpcUrl: 'http://localhost:8545',
   };
 }
 
-const DUMMY_ENCRYPTED_BLOB: EncryptedBlob = {
-  v: 1,
-  ephPub: '0x' + 'ab'.repeat(32),
-  nonce: '0x' + 'cd'.repeat(24),
-  ct: '0x' + 'ef'.repeat(48),
-};
-
 const SELLER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as const;
 const BUYER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
-
-// --- Test setup ---
+const RELAYER_PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
 
 async function buildApp(
   db: Database.Database,
-  tee: TeeClient = makeMockTee(),
   chainOverrides?: Parameters<typeof makeChainDeps>[0],
 ) {
   const app = Fastify({ logger: false });
   await app.register(cors, { origin: true });
   await registerRoutes(app, {
     db,
-    tee,
     chain: makeChainDeps(chainOverrides) as Parameters<typeof registerRoutes>[1]['chain'],
+    nearAi: {
+      apiKey: 'test-key',
+      baseURL: 'https://cloud-api.near.ai/v1',
+      model: 'qwen3-30b',
+      timeoutMs: 8000,
+    },
+    relayerPrivateKey: RELAYER_PK,
+    haggleEscrowAddress: '0x0000000000000000000000000000000000000002',
+    attestationDir: '/tmp/test-attestations',
   });
   return app;
+}
+
+function makeValidListing() {
+  return {
+    seller: SELLER,
+    askPrice: '1000000',
+    requiredKarmaTier: 0,
+    itemMeta: { title: 'MacBook M1', description: 'Good condition', category: 'electronics', images: [] },
+    plaintextMinSell: '800000',
+    plaintextSellerConditions: '강남, 주말 오후',
+  };
+}
+
+function makeValidOffer(listingId: string, nullifier?: string) {
+  return {
+    buyer: BUYER,
+    listingId,
+    bidPrice: '900000',
+    plaintextMaxBuy: '950000',
+    plaintextBuyerConditions: 'gangnam, weekends',
+    rlnProof: {
+      epoch: 1,
+      proof: '0x' + 'aa'.repeat(32),
+      nullifier: nullifier ?? ('0x' + '11'.repeat(32)),
+      signalHash: '0x' + '22'.repeat(32),
+      rlnIdentityCommitment: '0x' + '33'.repeat(32),
+    },
+  };
 }
 
 // --- Test: POST /listing ---
@@ -147,14 +164,7 @@ describe('POST /listing', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/listing',
-      payload: {
-        seller: SELLER,
-        askPrice: '1000000',
-        requiredKarmaTier: 0,
-        itemMeta: { title: 'MacBook M1', description: 'Good condition', category: 'electronics', images: [] },
-        encMinSell: DUMMY_ENCRYPTED_BLOB,
-        encSellerConditions: DUMMY_ENCRYPTED_BLOB,
-      },
+      payload: makeValidListing(),
     });
 
     expect(res.statusCode).toBe(201);
@@ -162,32 +172,38 @@ describe('POST /listing', () => {
     expect(body.listingId).toMatch(/^0x[0-9a-fA-F]{64}$/);
     expect(body.onchainTxHash).toBeNull();
 
-    // Verify DB row
+    // Verify DB row exists
     const row = db.prepare('SELECT * FROM listings WHERE id = ?').get(
       Buffer.from(body.listingId.slice(2), 'hex'),
     );
     expect(row).toBeTruthy();
   });
 
-  it('bad envelope (missing encMinSell) → 400', async () => {
+  it('missing plaintextMinSell → 400', async () => {
     const app = await buildApp(db);
+    const payload = { ...makeValidListing(), plaintextMinSell: undefined };
 
     const res = await app.inject({
       method: 'POST',
       url: '/listing',
-      payload: {
-        seller: SELLER,
-        askPrice: '1000000',
-        requiredKarmaTier: 0,
-        itemMeta: { title: 'Test', description: '', category: 'electronics', images: [] },
-        // encMinSell missing
-        encSellerConditions: DUMMY_ENCRYPTED_BLOB,
-      },
+      payload,
     });
 
     expect(res.statusCode).toBe(400);
     const body = res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe('bad-request');
+  });
+
+  it('non-decimal plaintextMinSell → 400', async () => {
+    const app = await buildApp(db);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/listing',
+      payload: { ...makeValidListing(), plaintextMinSell: 'not-a-number' },
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -199,121 +215,86 @@ describe('POST /offer', () => {
 
   beforeEach(async () => {
     db = buildDb();
-
-    // Pre-insert a listing
     const app = await buildApp(db);
     const res = await app.inject({
       method: 'POST',
       url: '/listing',
-      payload: {
-        seller: SELLER,
-        askPrice: '1000000',
-        requiredKarmaTier: 0,
-        itemMeta: { title: 'MacBook M1', description: '', category: 'electronics', images: [] },
-        encMinSell: DUMMY_ENCRYPTED_BLOB,
-        encSellerConditions: DUMMY_ENCRYPTED_BLOB,
-      },
+      payload: makeValidListing(),
     });
     listingId = (res.json() as { listingId: string }).listingId;
   });
 
   afterEach(() => { db.close(); });
 
-  function makeValidOffer(nullifier?: string) {
-    return {
-      buyer: BUYER,
-      listingId,
-      bidPrice: '900000',
-      encMaxBuy: DUMMY_ENCRYPTED_BLOB,
-      encBuyerConditions: DUMMY_ENCRYPTED_BLOB,
-      rlnProof: {
-        epoch: 1,
-        proof: '0x' + 'aa'.repeat(32),
-        nullifier: nullifier ?? ('0x' + '11'.repeat(32)),
-        signalHash: '0x' + '22'.repeat(32),
-        rlnIdentityCommitment: '0x' + '33'.repeat(32),
-      },
-    };
-  }
-
-  it('happy path → 202, poll /status yields agreement', async () => {
+  it('happy path → 202, negotiation queued', async () => {
     const app = await buildApp(db);
 
     const res = await app.inject({
       method: 'POST',
       url: '/offer',
-      payload: makeValidOffer(),
+      payload: makeValidOffer(listingId),
     });
 
     expect(res.statusCode).toBe(202);
     const body = res.json<{ offerId: string; negotiationId: string; status: string }>();
     expect(body.status).toBe('queued');
     expect(body.negotiationId).toMatch(/^0x[0-9a-fA-F]{64}$/);
-
-    // Poll status — wait for background negotiation to complete
-    await new Promise((r) => setTimeout(r, 100));
-
-    const statusRes = await app.inject({
-      method: 'GET',
-      url: `/status/${body.negotiationId}`,
-    });
-    expect(statusRes.statusCode).toBe(200);
-    const status = statusRes.json<{ state: string }>();
-    // Should be agreement (mock TEE returns agreement)
-    expect(['agreement', 'running', 'queued']).toContain(status.state);
   });
 
   it('duplicate nullifier → 403 rln-rejected', async () => {
     const app = await buildApp(db);
     const nullifier = '0x' + 'ff'.repeat(32);
 
-    // First offer succeeds
-    await app.inject({ method: 'POST', url: '/offer', payload: makeValidOffer(nullifier) });
-
-    // Manually max out the nullifier count (RLN_MAX_PER_EPOCH = 3)
+    await app.inject({ method: 'POST', url: '/offer', payload: makeValidOffer(listingId, nullifier) });
     db.exec(`UPDATE rln_nullifiers SET count = 3 WHERE epoch = 1`);
 
     const res = await app.inject({
       method: 'POST',
       url: '/offer',
-      payload: makeValidOffer(nullifier),
+      payload: makeValidOffer(listingId, nullifier),
     });
 
     expect(res.statusCode).toBe(403);
-    const body = res.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe('rln-rejected');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe('rln-rejected');
   });
 
   it('karma-gate fail → 403 karma-gate', async () => {
-    const app = await buildApp(db, makeMockTee(), { canOffer: false });
+    const app = await buildApp(db, { canOffer: false });
 
     const res = await app.inject({
       method: 'POST',
       url: '/offer',
-      payload: makeValidOffer(),
+      payload: makeValidOffer(listingId),
     });
 
     expect(res.statusCode).toBe(403);
-    const body = res.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe('karma-gate');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe('karma-gate');
   });
 
   it('throughput exceeded → 409', async () => {
-    // Tier 0 has limit 3; active = 3
-    const app = await buildApp(db, makeMockTee(), {
-      tier: 0,
-      activeNegotiations: 3,
-    });
+    const app = await buildApp(db, { tier: 0, activeNegotiations: 3 });
 
     const res = await app.inject({
       method: 'POST',
       url: '/offer',
-      payload: makeValidOffer(),
+      payload: makeValidOffer(listingId),
     });
 
     expect(res.statusCode).toBe(409);
-    const body = res.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe('throughput-exceeded');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe('throughput-exceeded');
+  });
+
+  it('missing plaintextMaxBuy → 400', async () => {
+    const app = await buildApp(db);
+    const payload = { ...makeValidOffer(listingId), plaintextMaxBuy: undefined };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/offer',
+      payload,
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -336,58 +317,36 @@ describe('GET /status/:negotiationId', () => {
 
     expect(res.statusCode).toBe(404);
   });
+
+  it('invalid negotiationId → 400', async () => {
+    const app = await buildApp(db);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/status/not-a-hex',
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
 });
 
-// --- Test: GET /tee-pubkey ---
+// --- Test: GET /attestation/:dealId ---
 
-describe('GET /tee-pubkey', () => {
+describe('GET /attestation/:dealId', () => {
   let db: Database.Database;
 
   beforeEach(() => { db = buildDb(); });
   afterEach(() => { db.close(); });
 
-  it('happy path → 200 with pubkey', async () => {
+  it('no bundle on disk → 404', async () => {
     const app = await buildApp(db);
+    const fakeId = '0x' + 'cd'.repeat(32);
 
-    const res = await app.inject({ method: 'GET', url: '/tee-pubkey' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json<GetTeePubkeyResponse>();
-    expect(body.pubkey).toMatch(/^0x/);
-    expect(body.enclaveId).toMatch(/^0x/);
-  });
-
-  it('cache semantics — second call uses cache', async () => {
-    let callCount = 0;
-    const tee = makeMockTee({
-      async getPubkey() {
-        callCount++;
-        return {
-          pubkey: '0x' + '00'.repeat(32),
-          enclaveId: '0x' + 'de'.repeat(32),
-          modelId: 'mock',
-          signerAddress: signerAccount.address,
-          whitelistedAt: 1_700_000_000,
-        };
-      },
+    const res = await app.inject({
+      method: 'GET',
+      url: `/attestation/${fakeId}`,
     });
-    const app = await buildApp(db, tee);
 
-    await app.inject({ method: 'GET', url: '/tee-pubkey' });
-    await app.inject({ method: 'GET', url: '/tee-pubkey' });
-
-    // Both calls should hit same cached result → only 1 fetch
-    expect(callCount).toBe(1);
-  });
-
-  it('TEE offline → 503', async () => {
-    const tee = makeMockTee({
-      async getPubkey() { throw new Error('connection refused'); },
-    });
-    const app = await buildApp(db, tee);
-
-    const res = await app.inject({ method: 'GET', url: '/tee-pubkey' });
-    expect(res.statusCode).toBe(503);
-    const body = res.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe('tee-offline');
+    expect(res.statusCode).toBe(404);
   });
 });
