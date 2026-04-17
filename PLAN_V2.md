@@ -1,9 +1,9 @@
-# Haggle V2 — Architecture & Implementation Plan
+# Bargo V2 — Architecture & Implementation Plan
 
 **Goal:** Replace the fake self-hosted Python TEE with a direct integration to **NEAR AI Cloud** (Intel TDX + NVIDIA GPU TEE) so judges can verify attestation end-to-end, while simplifying the on-chain settlement path to a single relayer-authorized call that records the NEAR AI attestation hash.
 
-**Supersedes:** `/Users/claraexmachina/haggle/PLAN.md` (v1). Cross-references to PRD remain valid.
-**Source of truth for requirements:** `/Users/claraexmachina/haggle/PRD.md` (§2.4 user stories, §2.12 demo scenario, §2.13 submissions). PRD §2.6–2.9 are **architecturally stale**; this document is the new source for architecture, crypto, and trust model. PRD text will be updated in Phase 1 by Agent D.
+**Supersedes:** `/Users/claraexmachina/bargo/PLAN.md` (v1). Cross-references to PRD remain valid.
+**Source of truth for requirements:** `/Users/claraexmachina/bargo/PRD.md` (§2.4 user stories, §2.12 demo scenario, §2.13 submissions). PRD §2.6–2.9 are **architecturally stale**; this document is the new source for architecture, crypto, and trust model. PRD text will be updated in Phase 1 by Agent D.
 
 ---
 
@@ -40,26 +40,26 @@ V2 makes **NEAR AI Cloud** (the real TEE) our trust anchor. Our service becomes 
 
 | Deleted | Added | Modified |
 |---|---|---|
-| `/Users/claraexmachina/haggle/services/tee/` (whole tree) | `/Users/claraexmachina/haggle/apps/negotiation-service/src/nearai/client.ts` | `/Users/claraexmachina/haggle/contracts/src/HaggleEscrow.sol` — remove signer whitelist, add `attestationRelayer`, add `nearAiAttestationHash` event topic |
-| `/Users/claraexmachina/haggle/packages/crypto/` (whole tree) | `/Users/claraexmachina/haggle/apps/negotiation-service/src/nearai/attestation.ts` | `/Users/claraexmachina/haggle/contracts/test/HaggleEscrow.t.sol` — rewrite to use relayer; remove EIP-712 sig cases |
-| `/Users/claraexmachina/haggle/contracts/src/libs/AttestationLib.sol` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/negotiate/engine.ts` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/db/schema.sql` — add plaintext columns + purge trigger |
-| `/Users/claraexmachina/haggle/contracts/test/AttestationLib.t.sol` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/negotiate/conditions.ts` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/routes/listing.ts` — accept plaintext |
-| `/Users/claraexmachina/haggle/apps/negotiation-service/src/tee/mock.ts` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/negotiate/karmaWeight.ts` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/routes/offer.ts` — accept plaintext, call engine directly |
-| `/Users/claraexmachina/haggle/apps/negotiation-service/src/tee/client.ts` | `/Users/claraexmachina/haggle/apps/negotiation-service/src/chain/relayer.ts` (writes `settleNegotiation`) | `/Users/claraexmachina/haggle/apps/negotiation-service/src/routes/status.ts` — include `nearAiAttestationHash` + `modelId` in response |
-| `/Users/claraexmachina/haggle/apps/web/lib/encrypt.ts` | `/Users/claraexmachina/haggle/scripts/verify-attestation.mjs` | `/Users/claraexmachina/haggle/packages/shared/src/types.ts` — replace `TeeAttestation` with `NearAiAttestation` shape |
-| `/Users/claraexmachina/haggle/apps/negotiation-service/test/mock-tee.test.ts` | `/Users/claraexmachina/haggle/apps/negotiation-service/test/engine.test.ts` | `/Users/claraexmachina/haggle/packages/shared/src/schemas.ts` — drop `EncryptedBlob`, `RLNProof` stays |
-| `/Users/claraexmachina/haggle/apps/web/lib/rln.ts` (stays — RLN is Status track) | `/Users/claraexmachina/haggle/apps/web/components/AttestationViewer.tsx` | `/Users/claraexmachina/haggle/apps/web/app/listings/new/page.tsx` — remove seal step |
-| `/Users/claraexmachina/haggle/packages/shared/src/abi/AttestationLib.ts` | `/Users/claraexmachina/haggle/docs/threat-model.md` | `/Users/claraexmachina/haggle/apps/web/app/offers/new/[listingId]/page.tsx` — remove seal step |
-| `/Users/claraexmachina/haggle/scripts/qa-seal.mjs` | `/Users/claraexmachina/haggle/docs/attestation-verification.md` | `/Users/claraexmachina/haggle/README.md` — new demo path + verifier instructions |
-| | | `/Users/claraexmachina/haggle/PRD.md` — rewrite §2.6–2.9 |
-| | | `/Users/claraexmachina/haggle/.env.example` — add `NEAR_AI_API_KEY`, `RELAYER_PRIVATE_KEY`; remove `TEE_*`, `MOCK_TEE`, envelope keys |
+| `/Users/claraexmachina/bargo/services/tee/` (whole tree) | `/Users/claraexmachina/bargo/apps/negotiation-service/src/nearai/client.ts` | `/Users/claraexmachina/bargo/contracts/src/BargoEscrow.sol` — remove signer whitelist, add `attestationRelayer`, add `nearAiAttestationHash` event topic |
+| `/Users/claraexmachina/bargo/packages/crypto/` (whole tree) | `/Users/claraexmachina/bargo/apps/negotiation-service/src/nearai/attestation.ts` | `/Users/claraexmachina/bargo/contracts/test/BargoEscrow.t.sol` — rewrite to use relayer; remove EIP-712 sig cases |
+| `/Users/claraexmachina/bargo/contracts/src/libs/AttestationLib.sol` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/negotiate/engine.ts` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/db/schema.sql` — add plaintext columns + purge trigger |
+| `/Users/claraexmachina/bargo/contracts/test/AttestationLib.t.sol` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/negotiate/conditions.ts` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/routes/listing.ts` — accept plaintext |
+| `/Users/claraexmachina/bargo/apps/negotiation-service/src/tee/mock.ts` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/negotiate/karmaWeight.ts` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/routes/offer.ts` — accept plaintext, call engine directly |
+| `/Users/claraexmachina/bargo/apps/negotiation-service/src/tee/client.ts` | `/Users/claraexmachina/bargo/apps/negotiation-service/src/chain/relayer.ts` (writes `settleNegotiation`) | `/Users/claraexmachina/bargo/apps/negotiation-service/src/routes/status.ts` — include `nearAiAttestationHash` + `modelId` in response |
+| `/Users/claraexmachina/bargo/apps/web/lib/encrypt.ts` | `/Users/claraexmachina/bargo/scripts/verify-attestation.mjs` | `/Users/claraexmachina/bargo/packages/shared/src/types.ts` — replace `TeeAttestation` with `NearAiAttestation` shape |
+| `/Users/claraexmachina/bargo/apps/negotiation-service/test/mock-tee.test.ts` | `/Users/claraexmachina/bargo/apps/negotiation-service/test/engine.test.ts` | `/Users/claraexmachina/bargo/packages/shared/src/schemas.ts` — drop `EncryptedBlob`, `RLNProof` stays |
+| `/Users/claraexmachina/bargo/apps/web/lib/rln.ts` (stays — RLN is Status track) | `/Users/claraexmachina/bargo/apps/web/components/AttestationViewer.tsx` | `/Users/claraexmachina/bargo/apps/web/app/listings/new/page.tsx` — remove seal step |
+| `/Users/claraexmachina/bargo/packages/shared/src/abi/AttestationLib.ts` | `/Users/claraexmachina/bargo/docs/threat-model.md` | `/Users/claraexmachina/bargo/apps/web/app/offers/new/[listingId]/page.tsx` — remove seal step |
+| `/Users/claraexmachina/bargo/scripts/qa-seal.mjs` | `/Users/claraexmachina/bargo/docs/attestation-verification.md` | `/Users/claraexmachina/bargo/README.md` — new demo path + verifier instructions |
+| | | `/Users/claraexmachina/bargo/PRD.md` — rewrite §2.6–2.9 |
+| | | `/Users/claraexmachina/bargo/.env.example` — add `NEAR_AI_API_KEY`, `RELAYER_PRIVATE_KEY`; remove `TEE_*`, `MOCK_TEE`, envelope keys |
 
 ---
 
 ## 1. Directory tree (final state)
 
 ```
-haggle/
+bargo/
 ├── PRD.md                             # Agent D rewrites §2.6–2.9
 ├── PLAN.md                            # archived; points to PLAN_V2.md
 ├── PLAN_V2.md                         # THIS FILE
@@ -108,7 +108,7 @@ haggle/
 │       │   ├── negotiate/                    # NEW dir
 │       │   │   ├── engine.ts                 # orchestrates: parse → match → price → attest
 │       │   │   ├── conditions.ts             # LLM prompts + JSON schema
-│       │   │   └── karmaWeight.ts            # port from services/tee/haggle_tee/karma_weight.py
+│       │   │   └── karmaWeight.ts            # port from services/tee/bargo_tee/karma_weight.py
 │       │   ├── chain/
 │       │   │   ├── read.ts                   # unchanged
 │       │   │   ├── watcher.ts                # unchanged
@@ -127,13 +127,13 @@ haggle/
 │
 ├── contracts/                          # Agent A
 │   ├── src/
-│   │   ├── HaggleEscrow.sol                  # MODIFIED: relayer model
+│   │   ├── BargoEscrow.sol                  # MODIFIED: relayer model
 │   │   ├── KarmaReader.sol                   # unchanged
 │   │   ├── RLNVerifier.sol                   # unchanged
 │   │   └── interfaces/                       # unchanged
 │   │   # libs/AttestationLib.sol DELETED
 │   ├── test/
-│   │   ├── HaggleEscrow.t.sol                # MODIFIED
+│   │   ├── BargoEscrow.t.sol                # MODIFIED
 │   │   ├── KarmaReader.t.sol                 # unchanged
 │   │   └── RLNVerifier.t.sol                 # unchanged
 │   │   # AttestationLib.t.sol DELETED
@@ -187,7 +187,7 @@ haggle/
                                               │     with plaintext   │
                                               │     columns          │
                                               │  3. call             │
-                                              │     HaggleEscrow     │
+                                              │     BargoEscrow     │
                                               │     .registerListing │
                                               │     via relayer      │
                                               │     (gasless relay)  │
@@ -258,7 +258,7 @@ Notes:
                                                  └────────────┬─────────────────┘
                                                               │
                                                  ┌────────────▼─────────────────┐
-                                                 │  HaggleEscrow                │
+                                                 │  BargoEscrow                │
                                                  │  emit NegotiationSettled     │
                                                  │    (indexed dealId, listing, │
                                                  │     offer, indexed           │
@@ -277,7 +277,7 @@ On `Deal.state == COMPLETED` (both parties confirmed meetup, funds released):
 
 ### 2.4 Meetup / no-show (unchanged from V1)
 
-Identical to current `HaggleEscrow` flow: `lockEscrow` → two `confirmMeetup` calls → `FundsReleased`, or `reportNoShow` after `lockedUntil` → `refund`.
+Identical to current `BargoEscrow` flow: `lockEscrow` → two `confirmMeetup` calls → `FundsReleased`, or `reportNoShow` after `lockedUntil` → `refund`.
 
 ### 2.5 Attestation verification by judge (off-chain)
 
@@ -468,7 +468,7 @@ struct Deal {
     uint64  lockedUntil;
 }
 
-interface IHaggleEscrow {
+interface IBargoEscrow {
     // ─── errors ───
     error KarmaTierBelowRequired(uint8 have, uint8 need);
     error ThroughputExceeded(address who, uint256 current, uint256 max);
@@ -567,7 +567,7 @@ modifier onlyAttestationRelayer() {
 **Constructor diff:**
 
 ```solidity
-// OLD: EIP712("Haggle v1", "1"), sets owner
+// OLD: EIP712("Bargo v1", "1"), sets owner
 // NEW: no EIP712 inheritance needed; store attestationRelayer at construction
 constructor(address karmaReader_, address rlnVerifier_, address attestationRelayer_) {
     if (karmaReader_ == address(0)) revert ZeroAddress();
@@ -626,7 +626,7 @@ import { utf8ToBytes } from '@noble/hashes/utils';
 
 const HOODI_RPC = process.env.HOODI_RPC ?? 'https://public.hoodi.rpc.status.network';
 const NRAS_URL  = process.env.NVIDIA_NRAS_URL ?? 'https://nras.attestation.nvidia.com/v3/attest/gpu';
-const SERVICE_BASE = process.env.SERVICE_URL ?? 'https://haggle.app';
+const SERVICE_BASE = process.env.SERVICE_URL ?? 'https://bargo.app';
 const EXPECTED_MR_TD = process.env.NEAR_AI_MR_TD; // pinned TDX measurement, set by Agent D from NEAR AI docs
 
 async function main() {
@@ -664,8 +664,8 @@ async function main() {
 async function fetchOnchainAttestationHash(dealId) {
   const client = createPublicClient({ transport: http(HOODI_RPC) });
   const logs = await client.getContractEvents({
-    address: HAGGLE_ESCROW_ADDRESS,
-    abi: HAGGLE_ESCROW_ABI,
+    address: BARGO_ESCROW_ADDRESS,
+    abi: BARGO_ESCROW_ABI,
     eventName: 'NegotiationSettled',
     args: { dealId },
     fromBlock: 0n,
@@ -704,7 +704,7 @@ Legend: **O** owns (writes), **R** reads (imports types, does not edit), **—**
 
 **Shared-types freeze:** Agent B writes `packages/shared/src/types.ts` + `schemas.ts` within first 2 hours of Phase 1. After that, changes require A+B+C sign-off in PR.
 
-**ABI freeze:** Agent A publishes `contracts/src/HaggleEscrow.sol` signature within first 2 hours; `forge build` regenerates ABI into `packages/shared/src/abi/` automatically. Post-freeze changes require A+B sign-off.
+**ABI freeze:** Agent A publishes `contracts/src/BargoEscrow.sol` signature within first 2 hours; `forge build` regenerates ABI into `packages/shared/src/abi/` automatically. Post-freeze changes require A+B sign-off.
 
 ---
 
@@ -727,7 +727,7 @@ Legend: **O** owns (writes), **R** reads (imports types, does not edit), **—**
 Can start in parallel once Phase 0 complete and types are frozen (Agent B's 2-hour lead).
 
 #### Task 1.1 — Contracts (Agent A)
-Files owned: `contracts/src/HaggleEscrow.sol`, `contracts/test/HaggleEscrow.t.sol`, `contracts/script/Deploy.s.sol`, delete `contracts/src/libs/AttestationLib.sol`, delete `contracts/test/AttestationLib.t.sol`.
+Files owned: `contracts/src/BargoEscrow.sol`, `contracts/test/BargoEscrow.t.sol`, `contracts/script/Deploy.s.sol`, delete `contracts/src/libs/AttestationLib.sol`, delete `contracts/test/AttestationLib.t.sol`.
 
 Steps:
 1. Delete `libs/AttestationLib.sol` + its test.
@@ -735,7 +735,7 @@ Steps:
 3. Add `attestationRelayer` state, `onlyAttestationRelayer` modifier, `setAttestationRelayer(address)` admin fn, `AttestationRelayerUpdated` event, `NotRelayer`, `AttestationHashZero` errors.
 4. Rewrite `settleNegotiation` signature to §3.3; store `agreedConditionsHash` + `nearAiAttestationHash` on `Deal`.
 5. Update `NegotiationSettled` event with indexed `nearAiAttestationHash`.
-6. Rewrite `HaggleEscrow.t.sol`: replace EIP-712/signature tests with relayer-auth tests (happy path, non-relayer revert, zero-hash revert, relayer rotation).
+6. Rewrite `BargoEscrow.t.sol`: replace EIP-712/signature tests with relayer-auth tests (happy path, non-relayer revert, zero-hash revert, relayer rotation).
 7. Update `Deploy.s.sol`: pass `attestationRelayer` into constructor; no `addEnclaveSigner` call.
 
 **Demoable output:** `forge test` green; deployed to Hoodi with `RELAYER_ADDRESS` in `docs/deployments.md`. Judge can call `settleNegotiation` from anywhere — reverts with `NotRelayer`.
@@ -750,14 +750,14 @@ Steps:
 4. Create `src/nearai/attestation.ts`: `fetchAttestation({model, nonce, dealId, completionId})` returns `NearAiAttestation`; computes `nearAiAttestationHash = keccak256(canonicalize(bundle))`; writes bundle to `./data/attestations/<dealId>.json`.
 5. Create `src/negotiate/engine.ts`: orchestration per §2.2 step diagram; return type is `NegotiationResult = NearAiAttestation | {failureReason}`.
 6. Create `src/negotiate/conditions.ts`: system prompt + JSON-schema string for NEAR AI call.
-7. Create `src/negotiate/karmaWeight.ts`: port logic from `services/tee/haggle_tee/karma_weight.py`.
+7. Create `src/negotiate/karmaWeight.ts`: port logic from `services/tee/bargo_tee/karma_weight.py`.
 8. Create `src/chain/relayer.ts`: uses `viem` WalletClient with `RELAYER_PRIVATE_KEY` to send `settleNegotiation` tx; returns `onchainTxHash`; updates `negotiations.onchain_tx_hash`.
 9. Modify `src/db/schema.sql`: replace `enc_min_sell_json`, `enc_seller_conditions_json` with `plaintext_min_sell TEXT`, `plaintext_seller_conditions TEXT`; same for offers; add `near_ai_attestation_hash`, `agreed_conditions_hash`, `agreed_conditions_json`, `model_id`, `completion_id` columns on `negotiations`; add `AFTER UPDATE ON negotiations WHEN NEW.state = 'completed'` trigger that NULLs plaintext columns.
 10. Modify `src/db/client.ts` + all `routes/*.ts` to match new schema and DTOs.
 11. Delete `routes/teePubkey.ts`; remove its registration in `routes/index.ts`.
 12. Add `routes/attestation.ts` handler for `GET /attestation/:dealId` that streams the saved JSON.
 13. Rewrite `test/routes.test.ts` for plaintext DTOs; delete `test/mock-tee.test.ts`; add `test/engine.test.ts` (mock NEAR AI response via MSW or vi.mock) + `test/attestation.test.ts` (fixture-based hash check).
-14. `src/config.ts`: add `NEAR_AI_API_KEY`, `NEAR_AI_MODEL` (default `qwen3-30b`), `RELAYER_PRIVATE_KEY`, `HAGGLE_ESCROW_ADDRESS`; remove `TEE_*`, `MOCK_TEE`.
+14. `src/config.ts`: add `NEAR_AI_API_KEY`, `NEAR_AI_MODEL` (default `qwen3-30b`), `RELAYER_PRIVATE_KEY`, `BARGO_ESCROW_ADDRESS`; remove `TEE_*`, `MOCK_TEE`.
 
 **Demoable output:** `pnpm -C apps/negotiation-service test` green; `curl -X POST /listing` + `/offer` happy path returns 202 and polling `/status` reaches `settled` with real on-chain tx on Hoodi. `GET /attestation/<dealId>` returns a verifiable bundle.
 
@@ -801,7 +801,7 @@ Single thread; needs all Phase 1 outputs merged.
 | 2.2 Write deployed addresses into `packages/shared/src/addresses.ts`; Agent B pulls + restarts service | A + B | `GET /status/:id` after new offer eventually sets `onchainTxHash` |
 | 2.3 End-to-end demo: seller on Phone 1 lists; buyer on Phone 2 offers; agreement in ≤15s; tx visible on Hoodi explorer; Phase-1 verifier passes against the emitted `nearAiAttestationHash` | all | Scripted run in `docs/demo-script.md` completes in <3min twice |
 | 2.4 Condition-mismatch demo: buyer/seller with contradictory time windows → `state: fail`, `failureReason: conditions_incompatible`; still produces attestation hash proving NEAR AI was called | all | UI shows only "협상 실패" — no leak of which condition failed |
-| 2.5 Auto-purge verification: complete a deal, inspect SQLite `plaintext_min_sell` → NULL | B | `sqlite3 data/haggle.db ".dump listings"` shows NULL |
+| 2.5 Auto-purge verification: complete a deal, inspect SQLite `plaintext_min_sell` → NULL | B | `sqlite3 data/bargo.db ".dump listings"` shows NULL |
 
 ### Phase 3 — Demo + video
 

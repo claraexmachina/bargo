@@ -1,5 +1,5 @@
-import { KARMA_TIER_NAMES } from '@haggle/shared';
-import type { KarmaTier } from '@haggle/shared';
+import { KARMA_TIER_NAMES } from '@bargo/shared';
+import type { KarmaTier } from '@bargo/shared';
 
 const KRW_FORMATTER = new Intl.NumberFormat('ko-KR', {
   style: 'currency',

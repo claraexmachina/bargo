@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { NegotiationStatus } from '../../components/NegotiationStatus';
-import type { GetStatusResponse, Hex } from '@haggle/shared';
+import type { GetStatusResponse, Hex } from '@bargo/shared';
 
 // Mock useAttestationBundle (used by AttestationViewer inside NegotiationStatus)
 vi.mock('@/lib/api', () => ({

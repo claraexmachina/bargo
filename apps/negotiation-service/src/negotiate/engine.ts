@@ -5,7 +5,7 @@ import { toBytes } from 'viem';
 import { keccak256 } from 'viem';
 // @ts-ignore — canonicalize has no bundled types
 import canonicalize from 'canonicalize';
-import type { DealId, ListingId, OfferId, KarmaTier, NearAiAttestation, NearAiAttestationBundle, AgreedConditions, FailureReason } from '@haggle/shared';
+import type { DealId, ListingId, OfferId, KarmaTier, NearAiAttestation, NearAiAttestationBundle, AgreedConditions, FailureReason } from '@bargo/shared';
 import { parseConditionsPair, LLMTimeoutError } from '../nearai/client.js';
 import { fetchAttestation, saveAttestationBundle } from '../nearai/attestation.js';
 import { matchConditions } from './conditions.js';
@@ -54,8 +54,8 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
 
   // B+C. Call NEAR AI to parse conditions
   let completionId: string;
-  let sellerConditions: import('@haggle/shared').ConditionStruct;
-  let buyerConditions: import('@haggle/shared').ConditionStruct;
+  let sellerConditions: import('@bargo/shared').ConditionStruct;
+  let buyerConditions: import('@bargo/shared').ConditionStruct;
 
   try {
     const parsed = await parseConditionsPair({

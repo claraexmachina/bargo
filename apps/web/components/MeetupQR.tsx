@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { DealId, Hex } from '@haggle/shared';
+import type { DealId, Hex } from '@bargo/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 

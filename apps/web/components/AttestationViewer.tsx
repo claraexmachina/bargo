@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { toast } from 'sonner';
-import type { NearAiAttestation, DealId } from '@haggle/shared';
+import type { NearAiAttestation, DealId } from '@bargo/shared';
 import { useAttestationBundle } from '@/lib/api';
 
 interface AttestationViewerProps {
@@ -140,7 +140,7 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
           심사위원용 검증 스크립트 복사
         </button>
         <a
-          href="https://github.com/claraexmachina/haggle#attestation-verification"
+          href="https://github.com/claraexmachina/bargo#attestation-verification"
           target="_blank"
           rel="noopener noreferrer"
           className="text-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"

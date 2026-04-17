@@ -3,7 +3,7 @@
 //   - conditionPairJsonSchema (re-export from nearai/client.ts)
 //   - matchConditions(seller, buyer) → compatible or incompatible
 
-import type { ConditionStruct, AgreedConditions } from '@haggle/shared';
+import type { ConditionStruct, AgreedConditions } from '@bargo/shared';
 
 export { conditionPairJsonSchema } from '../nearai/client.js';
 

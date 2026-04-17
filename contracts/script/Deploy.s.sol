@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {RLNVerifier} from "../src/RLNVerifier.sol";
 import {KarmaReader} from "../src/KarmaReader.sol";
-import {HaggleEscrow} from "../src/HaggleEscrow.sol";
+import {BargoEscrow} from "../src/BargoEscrow.sol";
 
-/// @notice Deploys RLNVerifier → KarmaReader → HaggleEscrow.
+/// @notice Deploys RLNVerifier → KarmaReader → BargoEscrow.
 ///         Requires env: DEPLOYER_PRIVATE_KEY, ATTESTATION_RELAYER_ADDRESS
 contract Deploy is Script {
     function run() external {
@@ -20,8 +20,8 @@ contract Deploy is Script {
         KarmaReader karmaReader = new KarmaReader();
         console.log("KarmaReader:", address(karmaReader));
 
-        HaggleEscrow escrow = new HaggleEscrow(address(karmaReader), address(rlnVerifier), attestationRelayer);
-        console.log("HaggleEscrow:", address(escrow));
+        BargoEscrow escrow = new BargoEscrow(address(karmaReader), address(rlnVerifier), attestationRelayer);
+        console.log("BargoEscrow:", address(escrow));
         console.log("attestationRelayer:", escrow.attestationRelayer());
 
         vm.stopBroadcast();

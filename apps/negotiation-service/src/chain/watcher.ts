@@ -1,11 +1,11 @@
 // chain/watcher.ts — PLAN_V2 §7 Task 1.4
-// Watches FundsReleased events on HaggleEscrow.
+// Watches FundsReleased events on BargoEscrow.
 // On event: sets negotiations.state = 'completed', which fires the SQLite
 // purge trigger to NULL plaintext_min_sell / plaintext_max_buy / etc.
 
 import type { WatchContractEventReturnType } from 'viem';
-import { haggleEscrowAbi } from '@haggle/shared';
-import type { DealId } from '@haggle/shared';
+import { bargoEscrowAbi } from '@bargo/shared';
+import type { DealId } from '@bargo/shared';
 import { updateNegotiationState } from '../db/client.js';
 import type Database from 'better-sqlite3';
 import type { createChainClient } from './read.js';
@@ -25,7 +25,7 @@ export function startFundsReleasedWatcher(
 ): WatchContractEventReturnType {
   const unwatch = client.watchContractEvent({
     address: escrowAddress,
-    abi: haggleEscrowAbi,
+    abi: bargoEscrowAbi,
     eventName: 'FundsReleased',
     pollingInterval: 3_000,
     onLogs: (logs) => {

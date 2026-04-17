@@ -12,8 +12,8 @@
  * identitySecret: persistent per-wallet, stored in localStorage under "rln_sk_{address}".
  * If absent, generated once and stored (no export — user must not lose it deliberately).
  */
-import type { Hex, ListingId, RLNProof } from '@haggle/shared';
-import { RLN_EPOCH_DURATION } from '@haggle/shared';
+import type { Hex, ListingId, RLNProof } from '@bargo/shared';
+import { RLN_EPOCH_DURATION } from '@bargo/shared';
 import { keccak256, encodeAbiParameters, parseAbiParameters, pad } from 'viem';
 
 const IDENTITY_SK_KEY = (address: string) => `rln_sk_${address.toLowerCase()}`;

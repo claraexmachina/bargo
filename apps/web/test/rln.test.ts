@@ -1,10 +1,10 @@
 /**
  * RLN proof stub structure test.
- * Verifies output matches the interface RLNProof from @haggle/shared.
+ * Verifies output matches the interface RLNProof from @bargo/shared.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { RLNProof } from '@haggle/shared';
-import { RLN_EPOCH_DURATION } from '@haggle/shared';
+import type { RLNProof } from '@bargo/shared';
+import { RLN_EPOCH_DURATION } from '@bargo/shared';
 
 // Provide localStorage stub for jsdom
 const storage: Record<string, string> = {};

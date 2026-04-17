@@ -14,8 +14,8 @@
  */
 
 import { useReadContract } from 'wagmi';
-import { karmaReaderAbi, ADDRESSES } from '@haggle/shared';
-import type { KarmaTier, Address } from '@haggle/shared';
+import { karmaReaderAbi, ADDRESSES } from '@bargo/shared';
+import type { KarmaTier, Address } from '@bargo/shared';
 import { KarmaBadge } from '@/components/KarmaBadge';
 
 // Deterministic demo tier map keyed by lowercase address.

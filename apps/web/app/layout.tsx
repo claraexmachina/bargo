@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Haggle — AI 중고거래 협상',
+  title: 'Bargo — AI 중고거래 협상',
   description: '내 봇이 상대방 봇이랑 협상. 가격도, 만남 조건도, 다.',
   manifest: '/manifest.webmanifest',
 };
@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="flex-1 mx-auto w-full max-w-screen-md px-4 py-6">{children}</main>
 
             <footer className="border-t py-4 text-center text-xs text-muted-foreground">
-              Haggle — TEE × Status Network × NEAR AI
+              Bargo — TEE × Status Network × NEAR AI
             </footer>
           </div>
         </Providers>

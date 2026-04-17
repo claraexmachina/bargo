@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/verify-attestation.mjs
-// Judge-facing verifier for Haggle V2 NEAR AI attestation bundles.
+// Judge-facing verifier for Bargo V2 NEAR AI attestation bundles.
 //
 // Usage:
 //   node verify-attestation.mjs --dealId 0x<bytes32>
@@ -9,9 +9,9 @@
 // Environment (all optional — defaults shown):
 //   HOODI_RPC        https://public.hoodi.rpc.status.network
 //   NVIDIA_NRAS_URL  https://nras.attestation.nvidia.com/v3/attest/gpu
-//   SERVICE_URL      https://haggle.app
+//   SERVICE_URL      https://bargo.app
 //   NEAR_AI_MR_TD    (pinned TDX measurement — skipped if unset)
-//   HAGGLE_ESCROW_ADDRESS  (required for --dealId onchain lookup)
+//   BARGO_ESCROW_ADDRESS  (required for --dealId onchain lookup)
 
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -28,12 +28,12 @@ import canonicalizeLib from 'canonicalize';
 
 const HOODI_RPC = process.env.HOODI_RPC ?? 'https://public.hoodi.rpc.status.network';
 const NRAS_URL = process.env.NVIDIA_NRAS_URL ?? 'https://nras.attestation.nvidia.com/v3/attest/gpu';
-const SERVICE_BASE = process.env.SERVICE_URL ?? 'https://haggle.app';
+const SERVICE_BASE = process.env.SERVICE_URL ?? 'https://bargo.app';
 const EXPECTED_MR_TD = process.env.NEAR_AI_MR_TD;
-const ESCROW_ADDRESS = process.env.HAGGLE_ESCROW_ADDRESS;
+const ESCROW_ADDRESS = process.env.BARGO_ESCROW_ADDRESS;
 
 // Minimal ABI — only the event we need for log lookup.
-const HAGGLE_ESCROW_ABI = [
+const BARGO_ESCROW_ABI = [
   {
     type: 'event',
     name: 'NegotiationSettled',
@@ -91,12 +91,12 @@ async function fetchAttestation(dealId) {
 
 async function fetchOnchainAttestationHash(dealId) {
   if (!ESCROW_ADDRESS) {
-    throw new Error('HAGGLE_ESCROW_ADDRESS env var is required for --dealId mode');
+    throw new Error('BARGO_ESCROW_ADDRESS env var is required for --dealId mode');
   }
   const client = createPublicClient({ transport: http(HOODI_RPC) });
   const logs = await client.getContractEvents({
     address: ESCROW_ADDRESS,
-    abi: HAGGLE_ESCROW_ABI,
+    abi: BARGO_ESCROW_ABI,
     eventName: 'NegotiationSettled',
     args: { dealId },
     fromBlock: 0n,

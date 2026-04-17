@@ -6,8 +6,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { verifyRlnProof } from '../src/rln/verify.js';
-import type { RLNProof } from '@haggle/shared';
-import { RLN_MAX_PER_EPOCH } from '@haggle/shared';
+import type { RLNProof } from '@bargo/shared';
+import { RLN_MAX_PER_EPOCH } from '@bargo/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

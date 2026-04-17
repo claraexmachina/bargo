@@ -321,7 +321,7 @@ async function main() {
   await scenarioPrivacyNoLeak(s1Result);
 
   record('S8 no-show Solidity', true,
-    'Verified: contracts/test/HaggleEscrow.t.sol::test_noShowFlow passes (forge test). See Foundry test run.');
+    'Verified: contracts/test/BargoEscrow.t.sol::test_noShowFlow passes (forge test). See Foundry test run.');
 
   const passed = results.filter((r) => r.ok).length;
   const total = results.length;

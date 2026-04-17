@@ -5,8 +5,8 @@
 // listingId: provided by caller (on-chain id from seller's registerListing tx).
 
 import type { FastifyInstance } from 'fastify';
-import { postListingRequestSchema } from '@haggle/shared';
-import type { ListingMeta, KarmaTier, ListingId } from '@haggle/shared';
+import { postListingRequestSchema } from '@bargo/shared';
+import type { ListingMeta, KarmaTier, ListingId } from '@bargo/shared';
 import {
   insertListing,
   getListingById,

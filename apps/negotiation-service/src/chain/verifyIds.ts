@@ -3,8 +3,8 @@
 // The service reads them back from the frontend (which captured them from on-chain).
 // These helpers confirm the IDs exist on-chain by scanning recent event logs.
 
-import { haggleEscrowAbi } from '@haggle/shared';
-import type { ListingId, OfferId, Address } from '@haggle/shared';
+import { bargoEscrowAbi } from '@bargo/shared';
+import type { ListingId, OfferId, Address } from '@bargo/shared';
 
 type ChainClient = ReturnType<typeof import('./read.js').createChainClient>;
 
@@ -25,7 +25,7 @@ export async function verifyListingOnChain(
 
   const logs = await client.getContractEvents({
     address: escrowAddress,
-    abi: haggleEscrowAbi,
+    abi: bargoEscrowAbi,
     eventName: 'ListingCreated',
     args: { listingId },
     fromBlock,
@@ -56,7 +56,7 @@ export async function verifyOfferOnChain(
 
   const logs = await client.getContractEvents({
     address: escrowAddress,
-    abi: haggleEscrowAbi,
+    abi: bargoEscrowAbi,
     eventName: 'OfferSubmitted',
     args: { offerId },
     fromBlock,

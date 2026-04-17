@@ -1,5 +1,5 @@
 {
-  "name": "@haggle/qa-scripts",
+  "name": "@bargo/qa-scripts",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "test-verify": "node test-verify.mjs"
   },
   "dependencies": {
-    "@haggle/shared": "workspace:*",
+    "@bargo/shared": "workspace:*",
     "@noble/curves": "1.8.1",
     "@noble/hashes": "1.7.2",
     "@noble/secp256k1": "^2.1.0",

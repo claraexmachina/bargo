@@ -4,7 +4,7 @@
 // Model: qwen3-30b (configurable via NEAR_AI_MODEL env)
 
 import OpenAI from 'openai';
-import type { ConditionStruct } from '@haggle/shared';
+import type { ConditionStruct } from '@bargo/shared';
 
 // --- Custom error ---
 

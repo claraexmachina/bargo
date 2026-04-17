@@ -1,4 +1,4 @@
-# Haggle — Architecture & Implementation Plan
+# Bargo — Architecture & Implementation Plan
 
 **Goal:** Ship a 3-minute end-to-end demo of TEE-mediated P2P negotiation (LLM condition parsing + ZOPA pricing + gasless escrow + Karma gating + RLN rate-limit) on Status Network Hoodi within 48 hours with 4 parallel senior engineers.
 
@@ -22,7 +22,7 @@
 **Why pnpm workspaces over flat:** TEE is Python (separate toolchain), contracts are Foundry (separate toolchain). Flat would force cross-language scripts into `package.json`. pnpm cleanly isolates the three JS/TS packages while Python and Foundry live side-by-side at top level. Zero ambiguity about where `node_modules` belongs.
 
 ```
-haggle/
+bargo/
 ├── PRD.md                        # docs-lead / planner only
 ├── PLAN.md                       # planner only (this file)
 ├── README.md                     # docs-lead only
@@ -53,8 +53,8 @@ haggle/
 │   │   │   └── MeetupQR.tsx
 │   │   ├── lib/
 │   │   │   ├── wagmi.ts
-│   │   │   ├── api.ts                       # REST client, types from @haggle/shared
-│   │   │   ├── encrypt.ts                   # wraps @haggle/crypto
+│   │   │   ├── api.ts                       # REST client, types from @bargo/shared
+│   │   │   ├── encrypt.ts                   # wraps @bargo/crypto
 │   │   │   └── rln.ts                       # wraps Status RLN SDK (or stub)
 │   │   ├── public/manifest.webmanifest
 │   │   ├── next.config.mjs
@@ -85,7 +85,7 @@ haggle/
 │
 ├── services/
 │   └── tee/                      # tee-lead (Python, runs in NEAR AI Cloud TEE)
-│       ├── haggle_tee/
+│       ├── bargo_tee/
 │       │   ├── __init__.py
 │       │   ├── server.py                    # FastAPI
 │       │   ├── negotiate.py                 # algorithm (§2.8)
@@ -105,7 +105,7 @@ haggle/
 │
 ├── contracts/                    # contract-lead (Foundry)
 │   ├── src/
-│   │   ├── HaggleEscrow.sol
+│   │   ├── BargoEscrow.sol
 │   │   ├── KarmaReader.sol
 │   │   ├── RLNVerifier.sol
 │   │   ├── Listings.sol
@@ -115,7 +115,7 @@ haggle/
 │   │   └── libs/
 │   │       └── AttestationLib.sol           # EIP-712 domain for TEE sig
 │   ├── test/
-│   │   ├── HaggleEscrow.t.sol
+│   │   ├── BargoEscrow.t.sol
 │   │   ├── KarmaReader.t.sol
 │   │   └── RLNVerifier.t.sol
 │   ├── script/
@@ -132,7 +132,7 @@ haggle/
 │   │   │   ├── constants.ts                 # KARMA_THRESHOLDS, ENCLAVE_WHITELIST
 │   │   │   ├── schemas.ts                   # Zod at API boundaries only
 │   │   │   ├── abi/
-│   │   │   │   ├── HaggleEscrow.ts          # generated from forge build
+│   │   │   │   ├── BargoEscrow.ts          # generated from forge build
 │   │   │   │   ├── KarmaReader.ts
 │   │   │   │   └── RLNVerifier.ts
 │   │   │   └── addresses.ts                 # per-chain deployed addresses
@@ -174,7 +174,7 @@ haggle/
 | **LLM client** | `openai` Python SDK pointed at NEAR AI Cloud base URL | Uses structured output (response_format: json_schema). Model: smallest NEAR-hosted Llama-3.1 variant for <10s latency (§2.11 risk). |
 | **Encryption** | **X25519 ECDH → HKDF-SHA256 → XChaCha20-Poly1305** via `@noble/ciphers` + `@noble/curves` (TS) and `cryptography` + `pynacl` (Python) | `@noble/*` is audited, zero-dep, browser-compatible (unlike `libsodium-wrappers` WASM blob). XChaCha20 gives a 24-byte random nonce — no nonce-reuse footgun. Alternatives rejected: ECIES with secp256k1 (reuses wallet key, dangerous for key-separation); RSA-OAEP (ciphertext too large for tx gas if we ever commit on-chain); libsodium sealed box (opaque, harder to debug cross-language). |
 | **Package manager** | pnpm 9 | Workspace support, fast install, strict peer deps. |
-| **Negotiation-service state** | **better-sqlite3, file at `./data/haggle.db`** | Persistent across restarts = safer demo. In-memory would lose state on redeploy during rehearsal. Synchronous API = simple code, no pool. Single-file DB = trivial to `rm` for a clean demo. |
+| **Negotiation-service state** | **better-sqlite3, file at `./data/bargo.db`** | Persistent across restarts = safer demo. In-memory would lose state on redeploy during rehearsal. Synchronous API = simple code, no pool. Single-file DB = trivial to `rm` for a clean demo. |
 | **Linting** | **Biome** | Single binary for lint + format. Faster than eslint+prettier, no plugin churn. Trade-off: fewer rules than eslint — acceptable for 48h project. Foundry/Solidity linted by `forge fmt`. |
 | **RLN** | Status Network RLN SDK via `@waku/rln` if published; **fallback: documented nullifier interface + in-memory Merkle tree stub** in `apps/negotiation-service/src/rln/` | Scope risk (§2.11). Stub is honest: we document "mock RLN" in demo. Interface identical so swap is drop-in. |
 | **Testing** | `forge test` for Solidity, `vitest` for TS, `pytest` for Python | Each ecosystem's native, no cross-language test runner. |
@@ -361,7 +361,7 @@ Base: `https://{NEGOTIATION_SERVICE_URL}`. All JSON. All timestamps unix seconds
 
 Rules:
 - `POST /offer` returns `202 Accepted` immediately; client polls `/status` every 1s (max 20s).
-- Service validates Zod schema from `@haggle/shared` **at boundary only**. Internal code uses plain types.
+- Service validates Zod schema from `@bargo/shared` **at boundary only**. Internal code uses plain types.
 - Service never sees plaintext `min_sell`, `max_buy`, or condition text — only encrypted blobs pass through.
 - Service performs RLN verify *before* calling TEE.
 - Service calls contract `canOfferOn(addr, listingId)` read-only before accepting offer → 403 if false.
@@ -404,13 +404,13 @@ Response (JSON) is a `TeeAttestation` (see §3.1).
 
 EIP-712 domain:
 ```
-name:    "Haggle"
+name:    "Bargo"
 version: "1"
 chainId: <Hoodi chain id>
-verifyingContract: HaggleEscrow address
+verifyingContract: BargoEscrow address
 ```
 
-#### `HaggleEscrow.sol`
+#### `BargoEscrow.sol`
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -440,7 +440,7 @@ struct Deal {
     uint64  lockedUntil;          // createdAt + SETTLEMENT_WINDOW
 }
 
-interface IHaggleEscrow {
+interface IBargoEscrow {
     // ─── errors ───
     error KarmaTierBelowRequired(uint8 have, uint8 need);
     error ThroughputExceeded(address who, uint256 current, uint256 max);
@@ -599,14 +599,14 @@ Where `tag` is the trailing 16 bytes (Poly1305) appended by XChaCha20-Poly1305.
 **Derivation:**
 1. Generate ephemeral X25519 keypair `(eskSender, epkSender)`.
 2. `shared = X25519(eskSender, epkTee)` (32 bytes).
-3. `key = HKDF-SHA256(shared, salt=epkSender || epkTee, info="haggle-v1", length=32)`.
+3. `key = HKDF-SHA256(shared, salt=epkSender || epkTee, info="bargo-v1", length=32)`.
 4. `nonce = randomBytes(24)`.
 5. `ct = XChaCha20-Poly1305(key, nonce, plaintext, aad=listingId)`.
    - `aad` is **32 bytes** — just the `listingId`. offerId is NOT part of AEAD; it is
      authenticated at the REST transport boundary (POST /offer binds buyer + listingId + blobs).
      This removes the 64-byte padding ambiguity and eliminates the "web cannot know offerId
      at seal time" problem. Implemented in `packages/crypto/src/seal.ts::buildListingAad`
-     (TS) and `services/tee/haggle_tee/crypto.py::build_listing_aad` (Python).
+     (TS) and `services/tee/bargo_tee/crypto.py::build_listing_aad` (Python).
    - **Listing-creation blobs** (`encMinSell`, `encSellerConditions`): the web cannot know
      the real `listingId` before the server responds, so `zeros32` is used as a stable
      placeholder. The real TEE decrypts listing blobs with `zeros32` as AAD (transmitted
@@ -653,7 +653,7 @@ Legend: **O** = owner (exclusive write), **R** = read-only reference (must not e
 ### 4.3 Explicit no-touch rules
 
 - **No lead edits `packages/shared` post-freeze** without opening an "ABI change" issue and getting 3/4 sign-off in a single PR.
-- Frontend-lead does **not** read `apps/negotiation-service/**` source. They integrate via `@haggle/shared` DTOs only.
+- Frontend-lead does **not** read `apps/negotiation-service/**` source. They integrate via `@bargo/shared` DTOs only.
 - Service-lead does **not** read `services/tee/**` source. They integrate via §3.3 HTTP contract.
 - Contract-lead does **not** deploy to mainnet. Hoodi only.
 - Tee-lead does **not** import anything from `apps/**`.
@@ -677,7 +677,7 @@ Frontend and contract-lead can now write and test end-to-end without waiting for
 
 ### 5.2 Mock contract stubs
 
-- Contract-lead commits a `Deploy.s.sol` that deploys `HaggleEscrow` with a stub `IKarmaReader` and stub `IRLNVerifier` at T+4h.
+- Contract-lead commits a `Deploy.s.sol` that deploys `BargoEscrow` with a stub `IKarmaReader` and stub `IRLNVerifier` at T+4h.
 - `KarmaReader` stub returns tier based on a mapping seeded in `Seed.s.sol` (3 demo wallets: Alice=3, Bob=1, Eve=0).
 - `RLNVerifier` stub accepts any proof where `nullifier != 0x00` until T+18h; after that, enforces `MAX_PER_EPOCH`.
 - Addresses written to `packages/shared/src/addresses.ts` and `docs/deployments.md`.
@@ -724,7 +724,7 @@ A phase ending without its exit criterion met triggers **replanning** (not push-
 
 **These are enforced in PR review. A PR failing any of these is rejected.**
 
-- **No custom event bus.** Packages communicate via imported types from `@haggle/shared` and HTTP endpoints in §3. No pub/sub lib, no `mitt`, no EventEmitter bridging packages.
+- **No custom event bus.** Packages communicate via imported types from `@bargo/shared` and HTTP endpoints in §3. No pub/sub lib, no `mitt`, no EventEmitter bridging packages.
 - **No `utils/`, `helpers/`, `common/`, or `lib/misc.ts`.** Every file has a specific domain name. If you can't name it, you don't need it.
 - **No commented-out code in PRs.** Delete or don't commit. Git remembers.
 - **Solidity:**
@@ -744,7 +744,7 @@ A phase ending without its exit criterion met triggers **replanning** (not push-
   - `ruff` + `mypy --strict` on CI.
   - Plaintext secrets never pass through `print`, logger, or exception messages. Add a lint rule that blocks `logger.*(min_sell)` patterns.
 - **Encryption:**
-  - All encryption flows through `packages/crypto` (TS) or `services/tee/haggle_tee/crypto.py` (Python). No inline `crypto.subtle`, no second copy of X25519 math.
+  - All encryption flows through `packages/crypto` (TS) or `services/tee/bargo_tee/crypto.py` (Python). No inline `crypto.subtle`, no second copy of X25519 math.
   - The Python and TS envelope code **must match byte-for-byte** (§3.5). A cross-language test fixture in `packages/crypto/test/fixtures/golden-envelope.json` is decryptable by both; CI runs both.
 - **Git:**
   - `main` is protected. PRs required.

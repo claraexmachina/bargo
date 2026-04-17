@@ -19,7 +19,7 @@ const envSchema = z.object({
   // Chain
   RELAYER_PRIVATE_KEY: hexPrivKey,
   HOODI_RPC_URL: z.string().url().default('https://public.hoodi.rpc.status.network'),
-  HAGGLE_ESCROW_ADDRESS: z
+  BARGO_ESCROW_ADDRESS: z
     .string()
     .regex(/^0x[0-9a-fA-F]{40}$/)
     .default('0x0000000000000000000000000000000000000000'),
@@ -33,7 +33,7 @@ const envSchema = z.object({
     .default('0x0000000000000000000000000000000000000000'),
 
   // Storage
-  DB_PATH: z.string().default('./data/haggle.db'),
+  DB_PATH: z.string().default('./data/bargo.db'),
   ATTESTATION_DIR: z.string().default('./data/attestations'),
 });
 
@@ -66,7 +66,7 @@ export const config = {
 
   relayerPrivateKey: env.RELAYER_PRIVATE_KEY as `0x${string}`,
   hoodiRpcUrl: env.HOODI_RPC_URL,
-  haggleEscrowAddress: env.HAGGLE_ESCROW_ADDRESS as `0x${string}`,
+  bargoEscrowAddress: env.BARGO_ESCROW_ADDRESS as `0x${string}`,
   karmaReaderAddress: env.KARMA_READER_ADDRESS as `0x${string}`,
   rlnVerifierAddress: env.RLN_VERIFIER_ADDRESS as `0x${string}`,
 

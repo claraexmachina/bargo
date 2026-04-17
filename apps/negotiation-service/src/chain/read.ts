@@ -1,16 +1,16 @@
 // Chain read helpers — viem public client for Status Network Hoodi.
 // Read-only. No private key needed.
 //
-// ABI stubs from @haggle/shared are used when available.
+// ABI stubs from @bargo/shared are used when available.
 // When ABIs are empty arrays or calls fail, conservative defaults apply:
 //   - getTier → 0 (most restrictive)
 //   - canOffer → true (permissive, no blocking)
 //   - getActiveNegotiations → 0
 
 import { createPublicClient, http } from 'viem';
-import { hoodiChain, karmaReaderAbi, haggleEscrowAbi } from '@haggle/shared';
-import type { Address } from '@haggle/shared';
-import type { KarmaTier } from '@haggle/shared';
+import { hoodiChain, karmaReaderAbi, bargoEscrowAbi } from '@bargo/shared';
+import type { Address } from '@bargo/shared';
+import type { KarmaTier } from '@bargo/shared';
 
 export function createChainClient(rpcUrl: string) {
   return createPublicClient({
@@ -86,16 +86,16 @@ export async function canOffer(
  */
 export async function getActiveNegotiations(
   client: ChainClient,
-  haggleEscrowAddress: Address,
+  bargoEscrowAddress: Address,
   who: Address,
 ): Promise<number> {
-  if (!hasAbi(haggleEscrowAbi)) {
+  if (!hasAbi(bargoEscrowAbi)) {
     return 0;
   }
   try {
     const count = await client.readContract({
-      address: haggleEscrowAddress,
-      abi: haggleEscrowAbi,
+      address: bargoEscrowAddress,
+      abi: bargoEscrowAbi,
       functionName: 'activeNegotiations',
       args: [who],
     });

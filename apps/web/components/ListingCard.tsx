@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { KarmaTier, ListingPublic } from '@haggle/shared';
+import type { KarmaTier, ListingPublic } from '@bargo/shared';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { KarmaBadge } from '@/components/KarmaBadge';
 import { formatKRW } from '@/lib/format';

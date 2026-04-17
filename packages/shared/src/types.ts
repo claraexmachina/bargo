@@ -1,6 +1,6 @@
 // ============================================================
 // packages/shared/src/types.ts
-// Haggle V2 — NEAR AI Cloud TEE architecture.
+// Bargo V2 — NEAR AI Cloud TEE architecture.
 // See PLAN_V2.md §3.1 for the full spec. Frozen at Phase 1 start.
 // Any change requires A+B+C sign-off + version bump.
 // ============================================================

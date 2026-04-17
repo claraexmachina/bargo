@@ -1,6 +1,6 @@
 'use client';
 
-import type { GetStatusResponse } from '@haggle/shared';
+import type { GetStatusResponse } from '@bargo/shared';
 import { Button } from '@/components/ui/button';
 import { AttestationViewer } from '@/components/AttestationViewer';
 import { formatKRW, formatMeetTime } from '@/lib/format';

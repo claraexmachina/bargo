@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { NearAiAttestationBundle, DealId } from '@haggle/shared';
+import type { NearAiAttestationBundle, DealId } from '@bargo/shared';
 import {
   canonicalizeBundle,
   hashBundle,
@@ -105,7 +105,7 @@ describe('saveAttestationBundle + loadAttestationBundle', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `haggle-test-${Date.now()}`);
+    tmpDir = join(tmpdir(), `bargo-test-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
   });
 

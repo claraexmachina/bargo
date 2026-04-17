@@ -5,8 +5,8 @@
 // clientSignature verification is skipped for hackathon (just record ack).
 
 import type { FastifyInstance } from 'fastify';
-import { postAttestationReceiptRequestSchema } from '@haggle/shared';
-import type { DealId } from '@haggle/shared';
+import { postAttestationReceiptRequestSchema } from '@bargo/shared';
+import type { DealId } from '@bargo/shared';
 import { getNegotiationById } from '../db/client.js';
 import { loadAttestationBundle } from '../nearai/attestation.js';
 import type Database from 'better-sqlite3';
