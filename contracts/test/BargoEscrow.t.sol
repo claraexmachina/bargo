@@ -19,13 +19,8 @@ contract BargoEscrowTest is Test {
     address private relayer = makeAddr("relayer");
     address private newRelayer = makeAddr("newRelayer");
 
-    // Prices
-    uint256 private constant ASK_PRICE = 1 ether;
-    uint256 private constant BID_PRICE = 0.9 ether;
+    // Prices — only used at settlement, never at listing/offer time
     uint256 private constant AGREED_PRICE = 0.95 ether;
-
-    // High value threshold: 500_000 ether (from BargoEscrow constant)
-    uint256 private constant HIGH_VALUE = 500_001 ether;
 
     // Attestation / conditions hashes
     bytes32 private constant ATTEST_HASH = keccak256("near-ai-attestation-bundle");
@@ -48,21 +43,21 @@ contract BargoEscrowTest is Test {
 
     function _makeRLNProof(address who, bytes32 listingId) internal view returns (bytes memory) {
         bytes32 nullifier = keccak256(abi.encodePacked("nullifier", who, listingId));
-        bytes32 signalHash = keccak256(abi.encodePacked(listingId, BID_PRICE, _currentEpoch()));
+        bytes32 signalHash = keccak256(abi.encodePacked(listingId, _currentEpoch()));
         bytes32 identity = keccak256(abi.encodePacked("identity", who));
         bytes memory proof = abi.encodePacked(keccak256(abi.encodePacked(signalHash, nullifier)));
         return abi.encode(signalHash, _currentEpoch(), nullifier, identity, proof);
     }
 
-    function _registerListing(uint8 tier, uint256 askPrice) internal returns (bytes32) {
+    function _registerListing(uint8 tier) internal returns (bytes32) {
         vm.prank(seller);
-        return escrow.registerListing(askPrice, tier, keccak256("macbook-meta"));
+        return escrow.registerListing(tier, keccak256("macbook-meta"));
     }
 
     function _submitOffer(address who, bytes32 listingId) internal returns (bytes32) {
         bytes memory rlnProof = _makeRLNProof(who, listingId);
         vm.prank(who);
-        return escrow.submitOffer(listingId, BID_PRICE, rlnProof);
+        return escrow.submitOffer(listingId, rlnProof);
     }
 
     function _settleNegotiation(bytes32 listingId, bytes32 offerId, uint256 agreedPrice) internal returns (bytes32) {
@@ -70,20 +65,58 @@ contract BargoEscrowTest is Test {
         return escrow.settleNegotiation(listingId, offerId, agreedPrice, CONDITIONS_HASH, ATTEST_HASH);
     }
 
+    // ─── V3 sealed-bid specific tests ───
+
+    function test_registerListing_noPrice_succeeds() public {
+        // V3: listing requires only tier + metaHash — no askPrice
+        bytes32 listingId = _registerListing(0);
+        BargoEscrow.Listing memory listing = escrow.getListing(listingId);
+
+        assertTrue(listing.active);
+        assertEq(listing.seller, seller);
+        assertEq(listing.requiredKarmaTier, 0);
+        assertNotEq(listingId, bytes32(0));
+    }
+
+    function test_submitOffer_noBidPrice_succeeds() public {
+        // V3: offer requires only listingId + rlnProof — no bidPrice
+        bytes32 listingId = _registerListing(0);
+        bytes memory rlnProof = _makeRLNProof(buyer, listingId);
+
+        vm.prank(buyer);
+        bytes32 offerId = escrow.submitOffer(listingId, rlnProof);
+
+        assertNotEq(offerId, bytes32(0));
+        assertEq(escrow.activeNegotiations(buyer), 1);
+    }
+
+    function test_settleNegotiation_agreedPriceStored() public {
+        // agreedPrice is the ONLY price ever recorded — set by relayer at settlement
+        bytes32 listingId = _registerListing(0);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+        bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
+
+        BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
+        assertEq(deal.agreedPrice, AGREED_PRICE);
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.PENDING));
+        assertEq(deal.buyer, buyer);
+        assertEq(deal.seller, seller);
+    }
+
     // ─── happy path ───
 
     function test_happyPath() public {
-        // 1. Register listing
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        // 1. Register listing (no price)
+        bytes32 listingId = _registerListing(0);
         BargoEscrow.Listing memory listing = escrow.getListing(listingId);
         assertTrue(listing.active);
         assertEq(listing.seller, seller);
 
-        // 2. Submit offer (buyer is tier 0, listing requires tier 0)
+        // 2. Submit offer (no bid price)
         bytes32 offerId = _submitOffer(buyer, listingId);
         assertNotEq(offerId, bytes32(0));
 
-        // 3. Settle negotiation via relayer
+        // 3. Settle negotiation via relayer (agreedPrice revealed here)
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
         BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
         assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.PENDING));
@@ -116,7 +149,7 @@ contract BargoEscrowTest is Test {
     // ─── Relayer model ───
 
     function test_settleNegotiation_onlyRelayer() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         vm.prank(eve);
@@ -125,7 +158,7 @@ contract BargoEscrowTest is Test {
     }
 
     function test_settleNegotiation_zeroHashReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         vm.prank(relayer);
@@ -134,7 +167,7 @@ contract BargoEscrowTest is Test {
     }
 
     function test_settleNegotiation_happyPath() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         bytes32 expectedDealId = keccak256(abi.encodePacked(listingId, offerId));
@@ -170,7 +203,7 @@ contract BargoEscrowTest is Test {
         assertEq(escrow.attestationRelayer(), newRelayer);
 
         // New relayer can settle
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         vm.prank(newRelayer);
@@ -181,7 +214,7 @@ contract BargoEscrowTest is Test {
         bytes32 listingId2;
         {
             vm.prank(seller);
-            listingId2 = escrow.registerListing(ASK_PRICE, 0, keccak256("item2"));
+            listingId2 = escrow.registerListing(0, keccak256("item2"));
         }
         bytes32 offerId2 = _submitOffer(buyer, listingId2);
 
@@ -197,24 +230,33 @@ contract BargoEscrowTest is Test {
 
     // ─── Karma gate ───
 
-    function test_karmaTierBelowRequired_highValueListing() public {
-        // Tier 0 buyer, 500k+ listing → revert
-        bytes32 listingId = _registerListing(0, HIGH_VALUE);
-        bytes memory rlnProof = _makeRLNProof(buyer, listingId);
-
-        vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(2)));
-        escrow.submitOffer(listingId, BID_PRICE, rlnProof);
-    }
-
     function test_karmaTierBelowRequired_listingTier() public {
         // requiredKarmaTier = 1, buyer = tier 0 → revert
-        bytes32 listingId = _registerListing(1, ASK_PRICE);
+        bytes32 listingId = _registerListing(1);
         bytes memory rlnProof = _makeRLNProof(buyer, listingId);
 
         vm.prank(buyer);
         vm.expectRevert(abi.encodeWithSelector(BargoEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(1)));
-        escrow.submitOffer(listingId, BID_PRICE, rlnProof);
+        escrow.submitOffer(listingId, rlnProof);
+    }
+
+    function test_karmaTierGate_sellerChoosesHighTier() public {
+        // Seller can manually require tier 2 for a high-value item
+        bytes32 listingId = _registerListing(2);
+        bytes memory rlnProof = _makeRLNProof(buyer, listingId);
+
+        // buyer is tier 0 → revert
+        vm.prank(buyer);
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(2)));
+        escrow.submitOffer(listingId, rlnProof);
+
+        // Tier 2 buyer can offer
+        address tier2Buyer = makeAddr("tier2Buyer");
+        karma.setTier(tier2Buyer, 2);
+        bytes memory proof2 = _makeRLNProof(tier2Buyer, listingId);
+        vm.prank(tier2Buyer);
+        bytes32 offerId = escrow.submitOffer(listingId, proof2);
+        assertNotEq(offerId, bytes32(0));
     }
 
     // ─── Throughput ───
@@ -224,21 +266,21 @@ contract BargoEscrowTest is Test {
         bytes32[4] memory listingIds;
         for (uint256 i = 0; i < 4; i++) {
             vm.prank(seller);
-            listingIds[i] = escrow.registerListing(ASK_PRICE, 0, keccak256(abi.encode("meta", i)));
+            listingIds[i] = escrow.registerListing(0, keccak256(abi.encode("meta", i)));
         }
 
         // Submit 3 offers (should succeed)
         for (uint256 i = 0; i < 3; i++) {
             bytes memory proofI = _makeRLNProof(buyer, listingIds[i]);
             vm.prank(buyer);
-            escrow.submitOffer(listingIds[i], BID_PRICE, proofI);
+            escrow.submitOffer(listingIds[i], proofI);
         }
 
         // 4th offer should revert
         bytes memory rlnProof = _makeRLNProof(buyer, listingIds[3]);
         vm.prank(buyer);
         vm.expectRevert(abi.encodeWithSelector(BargoEscrow.ThroughputExceeded.selector, buyer, uint256(3), uint256(3)));
-        escrow.submitOffer(listingIds[3], BID_PRICE, rlnProof);
+        escrow.submitOffer(listingIds[3], rlnProof);
     }
 
     function test_throughputDecrement_afterSettle() public {
@@ -246,14 +288,14 @@ contract BargoEscrowTest is Test {
         bytes32[4] memory listingIds;
         for (uint256 i = 0; i < 4; i++) {
             vm.prank(seller);
-            listingIds[i] = escrow.registerListing(ASK_PRICE, 0, keccak256(abi.encode("meta", i)));
+            listingIds[i] = escrow.registerListing(0, keccak256(abi.encode("meta", i)));
         }
 
         bytes32[3] memory offerIds;
         for (uint256 i = 0; i < 3; i++) {
             bytes memory proofJ = _makeRLNProof(buyer, listingIds[i]);
             vm.prank(buyer);
-            offerIds[i] = escrow.submitOffer(listingIds[i], BID_PRICE, proofJ);
+            offerIds[i] = escrow.submitOffer(listingIds[i], proofJ);
         }
 
         assertEq(escrow.activeNegotiations(buyer), 3);
@@ -265,14 +307,14 @@ contract BargoEscrowTest is Test {
         // Now submit 4th offer — should pass
         bytes memory rlnProof = _makeRLNProof(buyer, listingIds[3]);
         vm.prank(buyer);
-        escrow.submitOffer(listingIds[3], BID_PRICE, rlnProof);
+        escrow.submitOffer(listingIds[3], rlnProof);
         assertEq(escrow.activeNegotiations(buyer), 3);
     }
 
     // ─── RLN ───
 
     function test_rlnNullifierZeroReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
 
         // Encode proof with nullifier = 0
         bytes memory rlnProof =
@@ -280,7 +322,7 @@ contract BargoEscrowTest is Test {
 
         vm.prank(buyer);
         vm.expectRevert(IRLNVerifier.ProofInvalid.selector);
-        escrow.submitOffer(listingId, BID_PRICE, rlnProof);
+        escrow.submitOffer(listingId, rlnProof);
     }
 
     function test_rln4thUseReverts() public {
@@ -299,27 +341,27 @@ contract BargoEscrowTest is Test {
         bytes32[4] memory listings;
         for (uint256 i = 0; i < 4; i++) {
             vm.prank(seller);
-            listings[i] = escrow.registerListing(ASK_PRICE, 0, keccak256(abi.encode("meta", i, "rln")));
+            listings[i] = escrow.registerListing(0, keccak256(abi.encode("meta", i, "rln")));
         }
 
         // 3 successful submits using same nullifier (within RLN limit)
         for (uint256 i = 0; i < 3; i++) {
             bytes memory encodedI = abi.encode(signal, epoch, nullifier, identity, proof);
             vm.prank(rlnBuyer);
-            escrow.submitOffer(listings[i], BID_PRICE, encodedI);
+            escrow.submitOffer(listings[i], encodedI);
         }
 
         // 4th use of same nullifier in same epoch → RLN revert
         bytes memory encoded = abi.encode(signal, epoch, nullifier, identity, proof);
         vm.prank(rlnBuyer);
         vm.expectRevert(abi.encodeWithSelector(IRLNVerifier.NullifierAlreadyUsed.selector, nullifier));
-        escrow.submitOffer(listings[3], BID_PRICE, encoded);
+        escrow.submitOffer(listings[3], encoded);
     }
 
     // ─── No-show flow ───
 
     function test_noShowFlow() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 
@@ -348,7 +390,7 @@ contract BargoEscrowTest is Test {
     }
 
     function test_reportNoShowBeforeWindowReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 
@@ -369,26 +411,11 @@ contract BargoEscrowTest is Test {
 
         vm.prank(buyer);
         vm.expectRevert(abi.encodeWithSelector(BargoEscrow.ListingNotActive.selector, fakeListing));
-        escrow.submitOffer(fakeListing, BID_PRICE, rlnProof);
-    }
-
-    function test_zeroAmountListingReverts() public {
-        vm.prank(seller);
-        vm.expectRevert(BargoEscrow.ZeroAmount.selector);
-        escrow.registerListing(0, 0, keccak256("meta"));
-    }
-
-    function test_zeroAmountOfferReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
-        bytes memory rlnProof = _makeRLNProof(buyer, listingId);
-
-        vm.prank(buyer);
-        vm.expectRevert(BargoEscrow.ZeroAmount.selector);
-        escrow.submitOffer(listingId, 0, rlnProof);
+        escrow.submitOffer(fakeListing, rlnProof);
     }
 
     function test_wrongEscrowAmountReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 
@@ -399,7 +426,7 @@ contract BargoEscrowTest is Test {
     }
 
     function test_nonParticipantConfirmReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 
@@ -416,7 +443,7 @@ contract BargoEscrowTest is Test {
 
     function test_cancelOffer_afterSettle_noDoubleDecrement() public {
         // Submit → settle → cancel must NOT double-decrement activeNegotiations.
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         assertEq(escrow.activeNegotiations(buyer), 1);
@@ -449,7 +476,7 @@ contract BargoEscrowTest is Test {
 
     function test_refund_wrongState_reverts_DealNotInNoShow() public {
         // refund() when state is PENDING (not NOSHOW) should revert with DealNotInNoShow.
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 
@@ -459,7 +486,7 @@ contract BargoEscrowTest is Test {
     }
 
     function test_doubleConfirmReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 

@@ -7,11 +7,11 @@ import {IRLNVerifier} from "./interfaces/IRLNVerifier.sol";
 /// @title BargoEscrow
 /// @notice Escrow + negotiation settlement for Bargo P2P marketplace.
 ///         Enforces Karma tier gating, RLN rate-limiting, and NEAR AI attestation hash recording.
+///         V3: Sealed-bid — no price on Listing or Offer. agreedPrice is revealed only at settlement.
 contract BargoEscrow {
     // ─── constants ───
 
     uint256 public constant SETTLEMENT_WINDOW = 86_400; // 24 hours
-    uint256 public constant HIGH_VALUE_THRESHOLD = 500_000 ether; // demo: 500k token units
 
     // ─── types ───
 
@@ -26,7 +26,6 @@ contract BargoEscrow {
 
     struct Listing {
         address seller;
-        uint256 askPrice;
         uint8 requiredKarmaTier;
         bytes32 itemMetaHash;
         uint64 createdAt;
@@ -68,18 +67,10 @@ contract BargoEscrow {
     // ─── events ───
 
     event ListingCreated(
-        bytes32 indexed listingId,
-        address indexed seller,
-        uint256 askPrice,
-        uint8 requiredKarmaTier,
-        bytes32 itemMetaHash
+        bytes32 indexed listingId, address indexed seller, uint8 requiredKarmaTier, bytes32 itemMetaHash
     );
     event OfferSubmitted(
-        bytes32 indexed listingId,
-        bytes32 indexed offerId,
-        address indexed buyer,
-        uint256 bidPrice,
-        bytes32 rlnNullifier
+        bytes32 indexed listingId, bytes32 indexed offerId, address indexed buyer, bytes32 rlnNullifier
     );
     event NegotiationSettled(
         bytes32 indexed dealId,
@@ -152,49 +143,34 @@ contract BargoEscrow {
 
     // ─── listing ───
 
-    /// @notice Seller registers a listing on-chain.
-    function registerListing(uint256 askPrice, uint8 requiredKarmaTier, bytes32 itemMetaHash)
-        external
-        returns (bytes32 listingId)
-    {
-        if (askPrice == 0) revert ZeroAmount();
-
+    /// @notice Seller registers a listing on-chain. No price — sealed-bid model.
+    function registerListing(uint8 requiredKarmaTier, bytes32 itemMetaHash) external returns (bytes32 listingId) {
         listingId = keccak256(abi.encodePacked(msg.sender, itemMetaHash, block.timestamp));
 
         _listings[listingId] = Listing({
             seller: msg.sender,
-            askPrice: askPrice,
             requiredKarmaTier: requiredKarmaTier,
             itemMetaHash: itemMetaHash,
             createdAt: uint64(block.timestamp),
             active: true
         });
 
-        emit ListingCreated(listingId, msg.sender, askPrice, requiredKarmaTier, itemMetaHash);
+        emit ListingCreated(listingId, msg.sender, requiredKarmaTier, itemMetaHash);
     }
 
     // ─── offer ───
 
     /// @notice Buyer submits an offer. Enforces Karma tier gate, throughput limit, and RLN proof.
+    ///         No bid price — price is negotiated off-chain and revealed only at settlement.
     /// @param rlnProof ABI-encoded (signalHash, epoch, nullifier, rlnIdentityCommitment, proof).
-    function submitOffer(bytes32 listingId, uint256 bidPrice, bytes calldata rlnProof)
-        external
-        returns (bytes32 offerId)
-    {
-        if (bidPrice == 0) revert ZeroAmount();
-
+    function submitOffer(bytes32 listingId, bytes calldata rlnProof) external returns (bytes32 offerId) {
         Listing storage listing = _listings[listingId];
         if (!listing.active) revert ListingNotActive(listingId);
 
-        // Karma tier gate
+        // Karma tier gate — seller-chosen tier threshold
         uint8 buyerTier = karmaReader.getTier(msg.sender);
         if (!karmaReader.canOffer(msg.sender, listing.requiredKarmaTier)) {
             revert KarmaTierBelowRequired(buyerTier, listing.requiredKarmaTier);
-        }
-
-        // High-value listing gate (Tier 2+ required for 500k+ listings)
-        if (listing.askPrice >= HIGH_VALUE_THRESHOLD && buyerTier < 2) {
-            revert KarmaTierBelowRequired(buyerTier, 2);
         }
 
         // Throughput check
@@ -220,7 +196,7 @@ contract BargoEscrow {
             activeNegotiations[msg.sender] = current + 1;
         }
 
-        emit OfferSubmitted(listingId, offerId, msg.sender, bidPrice, nullifier);
+        emit OfferSubmitted(listingId, offerId, msg.sender, nullifier);
     }
 
     // ─── settlement ───
