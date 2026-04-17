@@ -183,7 +183,7 @@ export function useIntentMatches(buyer: Address | undefined) {
 }
 
 export async function ackIntentMatch(intentId: IntentId, listingId: ListingId): Promise<void> {
-  await fetchJSON<void>('/intent-match/ack', {
+  await fetchJSON<void>('/intent-matches/ack', {
     method: 'POST',
     body: JSON.stringify({ intentId, listingId }),
   });
