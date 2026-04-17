@@ -6,12 +6,18 @@
  *   NEXT_PUBLIC_NEGOTIATION_SERVICE_URL  — defaults to http://localhost:3001
  */
 import type {
+  Address,
   DealId,
+  GetIntentMatchesResponse,
   GetServicePubkeyResponse,
   GetStatusResponse,
+  IntentId,
+  IntentPublic,
   ListingId,
   ListingPublic,
   NearAiAttestationBundle,
+  PostIntentRequest,
+  PostIntentResponse,
   PostListingRequest,
   PostListingResponse,
   PostOfferRequest,
@@ -125,5 +131,71 @@ export function useAttestationBundle(dealId: DealId | null) {
     queryFn: () => fetchAttestationBundle(dealId!),
     enabled: dealId !== null,
     staleTime: Number.POSITIVE_INFINITY, // attestation bundle never changes once settled
+  });
+}
+
+// ─── Standing Intents ─────────────────────────────────────────────────────────
+
+export async function postIntent(body: PostIntentRequest): Promise<PostIntentResponse> {
+  return fetchJSON<PostIntentResponse>('/intent', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function usePostIntent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: postIntent,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['intents'] });
+    },
+  });
+}
+
+export async function fetchIntents(buyer: Address): Promise<{ intents: IntentPublic[] }> {
+  return fetchJSON<{ intents: IntentPublic[] }>(`/intents?buyer=${buyer}`);
+}
+
+export function useIntents(buyer: Address | undefined) {
+  return useQuery({
+    queryKey: ['intents', buyer],
+    queryFn: () => fetchIntents(buyer!),
+    enabled: !!buyer,
+  });
+}
+
+export async function deleteIntent(id: IntentId, buyer: Address): Promise<void> {
+  await fetchJSON<void>(`/intent/${id}?buyer=${buyer}`, { method: 'DELETE' });
+}
+
+export async function fetchIntentMatches(buyer: Address): Promise<GetIntentMatchesResponse> {
+  return fetchJSON<GetIntentMatchesResponse>(`/intent-matches?buyer=${buyer}`);
+}
+
+export function useIntentMatches(buyer: Address | undefined) {
+  return useQuery({
+    queryKey: ['intent-matches', buyer],
+    queryFn: () => fetchIntentMatches(buyer!),
+    enabled: !!buyer,
+    refetchInterval: 5000,
+  });
+}
+
+export async function ackIntentMatch(intentId: IntentId, listingId: ListingId): Promise<void> {
+  await fetchJSON<void>('/intent-match/ack', {
+    method: 'POST',
+    body: JSON.stringify({ intentId, listingId }),
+  });
+}
+
+export function useAckIntentMatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ intentId, listingId }: { intentId: IntentId; listingId: ListingId }) =>
+      ackIntentMatch(intentId, listingId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['intent-matches'] });
+    },
   });
 }

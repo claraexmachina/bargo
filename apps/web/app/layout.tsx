@@ -1,3 +1,4 @@
+import { IntentMatchBanner } from '@/components/IntentMatchBanner';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
@@ -40,6 +41,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   >
                     Create
                   </a>
+                  <a
+                    href="/intents"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors ml-2"
+                  >
+                    Intents
+                  </a>
+                  <IntentMatchBanner />
                 </nav>
               </div>
             </header>

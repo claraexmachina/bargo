@@ -6,12 +6,12 @@ import { UserKarma } from '@/components/UserKarma';
 import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useListing, usePostOffer, useServicePubkey } from '@/lib/api';
+import { useAckIntentMatch, useListing, usePostOffer, useServicePubkey } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
 import { lineaEstimateGas } from '@/lib/linea-estimate';
 import { buildRLNProof } from '@/lib/rln';
 import { sealConditions, sealReservationPrice } from '@/lib/seal';
-import type { Hex, ListingId } from '@bargo/shared';
+import type { Hex, IntentId, ListingId } from '@bargo/shared';
 import { ADDRESSES, bargoEscrowAbi } from '@bargo/shared';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import * as React from 'react';
@@ -30,9 +30,21 @@ export default function NewOfferPage() {
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
 
+  const fromIntent = searchParams.get('fromIntent') as IntentId | null;
+
   const { data: listing } = useListing(listingId);
   const postOffer = usePostOffer();
   const { data: servicePubkey } = useServicePubkey();
+  const ackMatch = useAckIntentMatch();
+  const ackMatchRef = React.useRef(ackMatch.mutateAsync);
+  ackMatchRef.current = ackMatch.mutateAsync;
+
+  // Acknowledge the intent match on mount when arriving from an intent notification.
+  React.useEffect(() => {
+    if (fromIntent && listingId) {
+      void ackMatchRef.current({ intentId: fromIntent, listingId });
+    }
+  }, [fromIntent, listingId]);
 
   const [maxPriceKrw, setMaxPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
@@ -208,6 +220,14 @@ export default function NewOfferPage() {
         </div>
         <WalletConnect />
       </div>
+
+      {fromIntent && (
+        <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Matched your standing intent — enter your offer below to proceed.
+          </p>
+        </div>
+      )}
 
       {chainId !== HOODI_CHAIN_ID && (
         <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">

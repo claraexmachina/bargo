@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import type {
   DealId,
   EncryptedBlob,
+  IntentFilters,
+  IntentId,
   KarmaTier,
   ListingId,
   NearAiAttestation,
@@ -320,6 +322,137 @@ export function updateNegotiationAttestation(
     Math.floor(Date.now() / 1000),
     hexToBuffer(negotiationId),
   );
+}
+
+// --- Intent operations ---
+
+export interface IntentRow {
+  id: Buffer;
+  buyer: string;
+  enc_max_buy_json: string;
+  enc_buyer_conditions_json: string;
+  filters_json: string;
+  expires_at: number;
+  active: number;
+  created_at: number;
+}
+
+export interface IntentMatchRow {
+  intent_id: Buffer;
+  listing_id: Buffer;
+  score: string;
+  match_reason: string;
+  matched_at: number;
+  acknowledged: number;
+}
+
+export interface InsertIntentParams {
+  id: IntentId;
+  buyer: string;
+  encMaxBuy: EncryptedBlob;
+  encBuyerConditions: EncryptedBlob;
+  filters: IntentFilters;
+  expiresAt: number;
+}
+
+export function insertIntent(db: Database.Database, params: InsertIntentParams): void {
+  const stmt = db.prepare<[Buffer, string, string, string, string, number, number]>(`
+    INSERT INTO intents
+      (id, buyer, enc_max_buy_json, enc_buyer_conditions_json, filters_json, expires_at, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+  `);
+  stmt.run(
+    hexToBuffer(params.id),
+    params.buyer,
+    JSON.stringify(params.encMaxBuy),
+    JSON.stringify(params.encBuyerConditions),
+    JSON.stringify(params.filters),
+    params.expiresAt,
+    Math.floor(Date.now() / 1000),
+  );
+}
+
+export function listActiveIntentsByBuyer(db: Database.Database, buyer: string): IntentRow[] {
+  const stmt = db.prepare<[string], IntentRow>(
+    `SELECT * FROM intents WHERE buyer = ? AND active = 1 ORDER BY created_at DESC`,
+  );
+  return stmt.all(buyer);
+}
+
+export function listAllActiveIntents(db: Database.Database): IntentRow[] {
+  const stmt = db.prepare<[], IntentRow>(
+    `SELECT * FROM intents WHERE active = 1 AND expires_at > unixepoch() ORDER BY created_at DESC`,
+  );
+  return stmt.all();
+}
+
+export function deactivateIntent(db: Database.Database, id: IntentId): void {
+  const stmt = db.prepare<[Buffer]>(`UPDATE intents SET active = 0 WHERE id = ?`);
+  stmt.run(hexToBuffer(id));
+}
+
+export interface InsertIntentMatchParams {
+  intentId: IntentId;
+  listingId: ListingId;
+  score: string;
+  matchReason: string;
+}
+
+export function insertIntentMatch(db: Database.Database, params: InsertIntentMatchParams): void {
+  const stmt = db.prepare<[Buffer, Buffer, string, string, number]>(`
+    INSERT OR IGNORE INTO intent_matches
+      (intent_id, listing_id, score, match_reason, matched_at, acknowledged)
+    VALUES (?, ?, ?, ?, ?, 0)
+  `);
+  stmt.run(
+    hexToBuffer(params.intentId),
+    hexToBuffer(params.listingId),
+    params.score,
+    params.matchReason,
+    Math.floor(Date.now() / 1000),
+  );
+}
+
+export interface IntentMatchJoinRow {
+  intent_id: Buffer;
+  listing_id: Buffer;
+  score: string;
+  match_reason: string;
+  matched_at: number;
+  acknowledged: number;
+  // from listings join
+  seller: string;
+  required_karma_tier: number;
+  item_meta_json: string;
+}
+
+export function getIntentMatchesByBuyer(
+  db: Database.Database,
+  buyer: string,
+  since?: number,
+): IntentMatchJoinRow[] {
+  const sinceTs = since ?? 0;
+  const stmt = db.prepare<[string, number], IntentMatchJoinRow>(`
+    SELECT im.intent_id, im.listing_id, im.score, im.match_reason, im.matched_at, im.acknowledged,
+           l.seller, l.required_karma_tier, l.item_meta_json
+    FROM intent_matches im
+    JOIN intents i ON i.id = im.intent_id
+    JOIN listings l ON l.id = im.listing_id
+    WHERE i.buyer = ? AND im.matched_at >= ?
+    ORDER BY im.matched_at DESC
+  `);
+  return stmt.all(buyer, sinceTs);
+}
+
+export function acknowledgeIntentMatch(
+  db: Database.Database,
+  intentId: IntentId,
+  listingId: ListingId,
+): void {
+  const stmt = db.prepare<[Buffer, Buffer]>(
+    `UPDATE intent_matches SET acknowledged = 1 WHERE intent_id = ? AND listing_id = ?`,
+  );
+  stmt.run(hexToBuffer(intentId), hexToBuffer(listingId));
 }
 
 // --- Counter for monotonic ID nonce generation ---

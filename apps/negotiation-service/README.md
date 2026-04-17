@@ -79,10 +79,47 @@ Each successful negotiation writes `./data/attestations/<dealId>.json` in RFC 87
 
 Plaintext columns (`plaintext_min_sell`, `plaintext_seller_conditions`, `plaintext_max_buy`, `plaintext_buyer_conditions`) are NULLed automatically when `negotiations.state` reaches `'completed'` via a SQLite trigger. Completed deals retain only: `agreed_price`, `agreed_conditions_hash`, `near_ai_attestation_hash`, `attestation_bundle_path`.
 
+## Auto-discovery (Standing Intents)
+
+Buyers register a sealed *standing intent* once; the matchmaker background worker discovers matching listings automatically.
+
+### Flow
+
+1. Buyer calls `POST /intents` with a sealed budget (`encMaxBuy`) and sealed natural-language conditions (`encBuyerConditions`), plus optional public filters (`category`, `requiredKarmaTierCeiling`) and an expiry timestamp.
+2. The service stores the intent (enc blobs at rest, never decrypted at registration time) and returns a server-assigned `intentId`.
+3. **Matchmaker loop** — runs in the background on the service:
+   - Subscribes to `ListingCreated` chain events via `watchContractEvent` (5 s polling interval).
+   - On each new listing: fetches all active non-expired intents from DB.
+   - **Public filter pass**: skip intent if `filters.category` mismatches listing's category, or `filters.requiredKarmaTierCeiling < listing.requiredKarmaTier`.
+   - **Ephemeral decrypt**: decrypts `encBuyerConditions` in-memory using the fixed intent AAD (`keccak256("bargo-intent-v1")`). The plaintext exists only for the duration of the NEAR AI call and is immediately discarded. **It is never logged, never stored, never returned through any API.**
+   - **NEAR AI scoring**: calls `POST /v1/chat/completions` with listing metadata + decrypted conditions. Model responds with `{ score: "match" | "likely" | "uncertain", reason: "<≤100 chars, public>" }`.
+   - If `score != "uncertain"`, inserts an `intent_matches` row.
+   - Also runs a 60 s periodic sweep as a safety net for any missed chain events.
+4. Buyer polls `GET /intent-matches?buyer=0x...` for notifications. Each match includes listing metadata, score, and public reason — never the decrypted conditions.
+5. Buyer calls `POST /intent-matches/ack` to acknowledge a notification.
+
+### Privacy invariant
+
+The decrypted buyer conditions (`encBuyerConditions` plaintext) exist only inside the matchmaker's ephemeral match-evaluation scope. No log sink, DB column, or API response ever receives this value. The `finally` block in `evaluateListingAgainstIntent` zeroes the local variable immediately after the NEAR AI call.
+
+### Intent AAD
+
+Intent blobs are sealed with AAD = `keccak256("bargo-intent-v1")` (32 bytes). This constant is distinct from the listing-bound AAD (`buildListingAad(listingId)`), preventing cross-context decryption. Both the service (`src/matchmaker.ts`) and the web client must use the same 32-byte value when sealing/opening intent blobs.
+
+### REST API (intents)
+
+| Method | Path | Response | Notes |
+|--------|------|----------|-------|
+| POST | `/intents` | 201 `{ intentId }` | Register sealed intent |
+| GET | `/intents?buyer=0x...` | 200 `{ intents[] }` | Public fields only — no enc blobs |
+| DELETE | `/intents/:id?buyer=0x...` | 200 `{ ok: true }` | Deactivate; buyer ownership enforced |
+| GET | `/intent-matches?buyer=0x...` | 200 `GetIntentMatchesResponse` | Match notifications with listing metadata |
+| POST | `/intent-matches/ack` | 200 `{ ok: true }` | Mark match acknowledged |
+
 ## Tests
 
 ```bash
 pnpm test
 ```
 
-34 tests: 8 RLN, 10 attestation (fixture-based hash + disk I/O), 5 engine (mocked NEAR AI), 11 routes (plaintext DTOs).
+64 tests: 8 RLN, 10 attestation, 6 engine, 12 routes, 18 intents routes, 6 matchmaker unit, 2 watcher, 2 crypto.
