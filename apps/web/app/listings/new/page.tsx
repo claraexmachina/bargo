@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
+import { keccak256, toHex, parseEventLogs } from 'viem';
 import { toast } from 'sonner';
 import { WalletConnect } from '@/components/WalletConnect';
 import { ConditionInput } from '@/components/ConditionInput';
@@ -12,7 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePostListing } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
-import type { KarmaTier } from '@haggle/shared';
+import type { KarmaTier, Hex } from '@haggle/shared';
+import { haggleEscrowAbi, ADDRESSES } from '@haggle/shared';
 
 const CATEGORIES = [
   { value: 'electronics', label: '전자기기' },
@@ -28,10 +30,14 @@ const KARMA_TIERS: { value: KarmaTier; label: string }[] = [
   { value: 3, label: 'Tier 3 — Elite만' },
 ];
 
+const HOODI_CHAIN_ID = 374;
+
 export default function NewListingPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
+  const publicClient = usePublicClient();
   const postListing = usePostListing();
+  const { writeContractAsync } = useWriteContract();
 
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -41,6 +47,9 @@ export default function NewListingPage() {
   const [conditions, setConditions] = React.useState('');
   const [requiredTier, setRequiredTier] = React.useState<KarmaTier>(0);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitStep, setSubmitStep] = React.useState<'idle' | 'onchain' | 'service'>('idle');
+
+  const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.haggleEscrow;
 
   const canSubmit =
     isConnected &&
@@ -55,8 +64,9 @@ export default function NewListingPage() {
     if (!canSubmit || !address) return;
 
     setIsSubmitting(true);
+    setSubmitStep('onchain');
 
-    // Capture sensitive values to locals and clear state BEFORE POST.
+    // Capture sensitive values to locals and clear state BEFORE submission.
     // This prevents plaintext lingering in React state on error.
     const rawMin = minPriceKrw;
     const rawCond = conditions;
@@ -74,30 +84,79 @@ export default function NewListingPage() {
         images: [] as string[],
       };
 
+      // Compute itemMetaHash: keccak256 of canonical JSON
+      const itemMetaHash = keccak256(toHex(JSON.stringify(itemMeta))) as Hex;
+
+      if (!escrowAddress) {
+        throw new Error('컨트랙트 주소가 설정되지 않았습니다. docs/deployments.md를 확인하세요.');
+      }
+
+      // Step 1: On-chain registerListing
+      toast.info('지갑에서 트랜잭션을 승인하세요...');
+      const txHash = await writeContractAsync({
+        address: escrowAddress,
+        abi: haggleEscrowAbi,
+        functionName: 'registerListing',
+        args: [BigInt(askPriceWei), requiredTier, itemMetaHash],
+      });
+
+      toast.info('트랜잭션 확인 중...');
+
+      // Step 2: Wait for receipt + parse ListingCreated event
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
+
+      const logs = parseEventLogs({
+        abi: haggleEscrowAbi,
+        eventName: 'ListingCreated',
+        logs: receipt.logs,
+      });
+
+      const firstLog = logs[0];
+      if (!firstLog) {
+        throw new Error('ListingCreated 이벤트를 찾을 수 없습니다. 트랜잭션을 확인해주세요.');
+      }
+
+      const listingId = (firstLog.args as { listingId: Hex }).listingId;
+      toast.success('온체인 등록 완료!');
+
+      // Step 3: POST to negotiation service
+      setSubmitStep('service');
       const result = await postListing.mutateAsync({
+        listingId,
         seller: address,
         askPrice: askPriceWei,
         requiredKarmaTier: requiredTier,
         itemMeta,
         plaintextMinSell: minPriceWei,
         plaintextSellerConditions: rawCond.trim().slice(0, 2048),
+        onchainTxHash: txHash,
       });
 
       toast.success('매물이 등록되었습니다!');
-
-      if (result.onchainTxHash && result.onchainTxHash !== '0x') {
-        toast.success('온체인 등록 완료');
-      }
-
       router.push(`/listings/${result.listingId}`);
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
         console.error('[listings/new] submit error:', err);
       }
-      toast.error('매물 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('User rejected') || msg.includes('user rejected')) {
+        toast.error('트랜잭션이 취소되었습니다.');
+      } else if (msg.includes('컨트랙트 주소')) {
+        toast.error(msg);
+      } else {
+        toast.error('매물 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setIsSubmitting(false);
+      setSubmitStep('idle');
     }
+  }
+
+  function submitLabel() {
+    if (!isSubmitting) return '매물 등록';
+    if (submitStep === 'onchain') return '온체인 등록 중...';
+    if (submitStep === 'service') return '서비스 등록 중...';
+    return '등록 중...';
   }
 
   if (!isConnected) {
@@ -115,6 +174,14 @@ export default function NewListingPage() {
         <h1 className="text-2xl font-bold">매물 등록</h1>
         <WalletConnect />
       </div>
+
+      {chainId !== HOODI_CHAIN_ID && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            Hoodi 네트워크 (chainId {HOODI_CHAIN_ID})로 전환해주세요.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic info */}
@@ -202,8 +269,7 @@ export default function NewListingPage() {
                 label="최저 판매가 (원)"
               />
               <p className="text-sm text-muted-foreground">
-                이 가격은 <strong>NEAR AI TEE 안에서만 LLM에 전달</strong>됩니다.
-                상대방은 볼 수 없고, 서비스는 거래 완료 후 자동 삭제합니다.
+                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수 없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
               </p>
             </div>
           </CardContent>
@@ -265,7 +331,7 @@ export default function NewListingPage() {
             취소
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1" size="lg">
-            {isSubmitting ? '등록 중...' : '매물 등록'}
+            {submitLabel()}
           </Button>
         </div>
       </form>

@@ -19,6 +19,7 @@ function hex(s: string): Hex {
 describe('V2 DTO type-level tests', () => {
   it('PostListingRequest has plaintextMinSell and plaintextSellerConditions', () => {
     const req: PostListingRequest = {
+      listingId: hex('11'.repeat(32)),
       seller: hex('DEAD000000000000000000000000000000000000'),
       askPrice: '800000000000000000000000',
       requiredKarmaTier: 2,
@@ -30,6 +31,7 @@ describe('V2 DTO type-level tests', () => {
       },
       plaintextMinSell: '700000000000000000000000',
       plaintextSellerConditions: '강남/송파 직거래만, 평일 19시 이후',
+      onchainTxHash: hex('aa'.repeat(32)),
     };
 
     expect(req.plaintextMinSell).toMatch(/^\d+$/);
@@ -49,12 +51,14 @@ describe('V2 DTO type-level tests', () => {
     };
 
     const req: PostOfferRequest = {
+      offerId: hex('22'.repeat(32)),
       buyer: hex('BEEF000000000000000000000000000000000000'),
       listingId: hex('11'.repeat(32)),
       bidPrice: '720000000000000000000000',
       plaintextMaxBuy: '750000000000000000000000',
       plaintextBuyerConditions: '강남 가능, 토요일만',
       rlnProof,
+      onchainTxHash: hex('bb'.repeat(32)),
     };
 
     expect(req.plaintextMaxBuy).toMatch(/^\d+$/);
@@ -74,6 +78,7 @@ describe('V2 DTO type-level tests', () => {
         meetTimeIso: '2026-04-18T19:00:00+09:00',
         payment: 'cash',
       },
+      agreedConditionsHash: hex('ff'.repeat(32)),
       modelId: 'qwen3-30b',
       completionId: 'chatcmpl-xyz',
       nonce: hex('dd'.repeat(32)),

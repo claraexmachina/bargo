@@ -44,9 +44,11 @@ describe('ConditionInput component', () => {
     expect(screen.getByText(/\d+B/)).toBeInTheDocument();
   });
 
-  it('shows TEE encryption hint', () => {
+  it('shows TEE privacy hint', () => {
     render(<ConditionInput value="" onChange={() => {}} />);
-    expect(screen.getByText(/암호화되어 TEE로 전송/)).toBeInTheDocument();
+    // The hint spans multiple DOM nodes (strong + text); check for key substrings
+    expect(screen.getByText(/자동 purge/)).toBeInTheDocument();
+    expect(screen.getByText(/NEAR AI TEE/)).toBeInTheDocument();
   });
 
   it('shows sensitive warning when paste event fires with email', async () => {

@@ -6,6 +6,8 @@ import { ListingCard } from '@/components/ListingCard';
 import type { ListingPublic } from '@haggle/shared';
 
 async function fetchListings(): Promise<ListingPublic[]> {
+  // NEXT_PUBLIC_NEGOTIATION_SERVICE_URL is the single env var used across the app.
+  // On the server NEGOTIATION_SERVICE_URL can override it (private, server-only).
   const serviceUrl =
     process.env.NEGOTIATION_SERVICE_URL ?? process.env.NEXT_PUBLIC_NEGOTIATION_SERVICE_URL ?? '';
 
@@ -26,7 +28,7 @@ async function fetchListings(): Promise<ListingPublic[]> {
 const DEMO_LISTINGS: ListingPublic[] = [
   {
     id: '0x1111111111111111111111111111111111111111111111111111111111111111',
-    seller: '0xAlice000000000000000000000000000000000000',
+    seller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
     askPrice: (800_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 1,
     itemMeta: {
@@ -40,7 +42,7 @@ const DEMO_LISTINGS: ListingPublic[] = [
   },
   {
     id: '0x2222222222222222222222222222222222222222222222222222222222222222',
-    seller: '0xBob0000000000000000000000000000000000000',
+    seller: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
     askPrice: (150_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 0,
     itemMeta: {
@@ -54,7 +56,7 @@ const DEMO_LISTINGS: ListingPublic[] = [
   },
   {
     id: '0x3333333333333333333333333333333333333333333333333333333333333333',
-    seller: '0xCarol00000000000000000000000000000000000',
+    seller: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
     askPrice: (600_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 2,
     itemMeta: {

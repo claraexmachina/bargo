@@ -9,8 +9,6 @@ interface NegotiationStatusProps {
   status: GetStatusResponse;
   onRetry?: () => void;
   onLockEscrow?: (agreedPrice: string) => void;
-  listingId?: string;
-  previousBid?: string;
 }
 
 function BotVsBotAnimation() {
@@ -55,7 +53,7 @@ function BotVsBotAnimation() {
 }
 
 export function NegotiationStatus({ status, onRetry, onLockEscrow }: NegotiationStatusProps) {
-  const { state, attestation } = status;
+  const { state, attestation, onchainTxHash } = status;
 
   if (state === 'queued' || state === 'running') {
     return (
@@ -63,7 +61,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         <BotVsBotAnimation />
         <p className="text-sm font-medium">NEAR AI TEE 안에서 협상 중...</p>
         <p className="text-xs text-muted-foreground">
-          가격·조건은 TEE 안에서만 처리됩니다 — 상대방도, 서비스도 볼 수 없습니다
+          가격·조건은 NEAR AI TEE 안에서 LLM이 처리합니다. 상대방은 절대 볼 수 없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
         </p>
       </div>
     );
@@ -117,7 +115,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
           </div>
         </div>
 
-        <AttestationViewer attestation={attestation} />
+        <AttestationViewer attestation={attestation} onchainTxHash={onchainTxHash} />
 
         {state === 'agreement' && onLockEscrow && (
           <Button

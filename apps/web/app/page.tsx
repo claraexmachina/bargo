@@ -59,8 +59,8 @@ export default function HomePage() {
           작동 방식
         </p>
         {[
-          { icon: '🔐', title: '비공개 가격 입력', desc: '최저가/최대가를 클라이언트에서 암호화 — 서버도 모름' },
-          { icon: '🤖', title: 'TEE 안에서 협상', desc: 'NEAR AI LLM이 조건 파싱, ZOPA 알고리즘으로 가격 합의' },
+          { icon: '🔐', title: '비공개 가격 입력', desc: 'NEAR AI TEE 보호 + 거래 완료 시 자동 삭제. 상대방은 절대 볼 수 없습니다.' },
+          { icon: '🤖', title: 'TEE 안에서 협상', desc: 'NEAR AI Cloud TEE의 qwen3-30b LLM이 조건 파싱, ZOPA 알고리즘으로 가격 합의' },
           { icon: '⛓️', title: '온체인 에스크로', desc: 'Status Network 가스리스 tx, Karma 신뢰, 만남 QR 인증' },
         ].map((step) => (
           <div key={step.title} className="flex items-start gap-3">
