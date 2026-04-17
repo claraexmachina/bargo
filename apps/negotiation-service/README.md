@@ -1,31 +1,42 @@
-# Bargo Negotiation Service (V2)
+# Bargo Negotiation Service (V3)
 
-Fastify service that brokers peer-to-peer negotiation using NEAR AI Cloud (Intel TDX + NVIDIA GPU TEE) as the trusted inference provider. Handles RLN rate-limiting, Karma gating, plaintext condition parsing, and on-chain settlement via an attestation relayer.
+Fastify service that brokers peer-to-peer negotiation using NEAR AI Cloud (Intel TDX + NVIDIA GPU TEE) as the trusted inference provider. Handles sealed-bid ephemeral decryption, RLN rate-limiting, Karma gating, standing-intent auto-discovery, and on-chain settlement via an attestation relayer.
 
 ## Architecture
 
 ```
-POST /offer
+GET  /service-pubkey (X25519 pubkey — clients seal blobs to this)
+POST /listing  (sealed EncryptedBlob for floor + conditions)
+POST /offer    (sealed EncryptedBlob for ceiling + conditions + RLN proof)
   → RLN verify + Karma gate
-  → INSERT offer (plaintext)
+  → INSERT listing/offer rows (enc_* blobs only — no plaintext in DB)
   → runNegotiation() [background]
-      A. ZOPA check (buyerMax >= sellerMin)
-      B. parseConditionsPair -> NEAR AI qwen3-30b (json_schema response_format)
-      C. matchConditions (location ∩ time ∩ payment)
-      D. computeAgreedPrice (karma-weighted split)
-      E. fetchAttestation (GET /v1/attestation/report?nonce=keccak256(dealId||completionId))
-      F. saveAttestationBundle -> ./data/attestations/<dealId>.json
-      G. submitSettlement -> BargoEscrow.settleNegotiation() on-chain
+      A. decryptReservationEphemeral() — ~10ms window, plaintext NEVER logged
+      B. ZOPA check (maxBuyWei >= minSellWei)
+      C. parseConditionsPair -> NEAR AI qwen3-30b (json_schema response_format)
+      D. matchConditions (location ∩ time ∩ payment)
+      E. computeAgreedPrice (karma-weighted split)
+      F. fetchAttestation (GET /v1/attestation/report?nonce=keccak256(dealId||completionId))
+      G. saveAttestationBundle -> ./data/attestations/<dealId>.json
+      H. submitSettlement -> BargoEscrow.settleNegotiation() on-chain
+
+Background: startMatchmaker()
+  → watches ListingCreated chain events (5s polling)
+  → for each new listing x active intent: apply public filters,
+    decryptIntentConditions() ephemeral, callNearAiMatcher(), insert IntentMatch
 ```
+
+**Privacy invariant**: plaintext (minSellWei, maxBuyWei, sellerConditions, buyerConditions) exists only in ephemeral request-scope memory during step A above. Never written to DB, logs, or disk.
 
 ## How runNegotiation works
 
-1. **ZOPA check**: if `buyerMax < sellerMin`, immediately returns `fail('no_price_zopa')` without calling NEAR AI.
-2. **Condition parsing**: calls NEAR AI `POST /v1/chat/completions` with `response_format: json_schema`. The model parses free-text Korean/English conditions into structured `ConditionStruct` (location slugs, day/hour windows, payment methods). On timeout or malformed response, returns `fail('llm_timeout')`.
-3. **Condition matching**: intersects location, time windows, and payment methods. If no overlap on any axis, returns `fail('conditions_incompatible')`.
-4. **Price computation**: `weight = 0.5 + 0.05 * (sellerTier - buyerTier)`, clamped `[0.35, 0.65]`. `agreedPrice = floor(sellerMin + (buyerMax - sellerMin) * weight)`.
-5. **Attestation**: `nonce = keccak256(dealId || completionId)`. Calls `GET /v1/attestation/report?model=...&nonce=...&signing_algo=ecdsa`. Validates response against `nearAiAttestationBundleSchema`.
-6. **Settlement**: relayer submits `settleNegotiation(listingId, offerId, agreedPrice, agreedConditionsHash, nearAiAttestationHash)` to BargoEscrow on-chain.
+1. **Ephemeral decrypt**: `decryptReservationEphemeral` reconstructs all four plaintext values in memory using X25519 ECDH + HKDF-SHA256 + XChaCha20-Poly1305. Caller must not log the returned object.
+2. **ZOPA check**: if `maxBuyWei < minSellWei`, returns `fail('no_price_zopa')` without calling NEAR AI.
+3. **Condition parsing**: calls NEAR AI `POST /v1/chat/completions` with `response_format: json_schema`. Parses free-text conditions into `ConditionStruct` (location slugs, day/hour windows, payment methods). Timeout or malformed response returns `fail('llm_timeout')`.
+4. **Condition matching**: intersects location, time windows, and payment methods. No overlap returns `fail('conditions_incompatible')`.
+5. **Price computation**: `weight = 0.5 + 0.05 * (sellerTier - buyerTier)`, clamped `[0.35, 0.65]`. `agreedPrice = floor(minSell + (maxBuy - minSell) * weight)`.
+6. **Attestation**: `nonce = keccak256(dealId || completionId)`. Calls `GET /v1/attestation/report?model=...&nonce=...&signing_algo=ecdsa`. Validates response against `nearAiAttestationBundleSchema`.
+7. **Settlement**: relayer submits `settleNegotiation(listingId, offerId, agreedPrice, agreedConditionsHash, nearAiAttestationHash)` to BargoEscrow on-chain.
 
 ## Environment variables
 
@@ -33,11 +44,12 @@ Copy `.env.example` and fill in the required values.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
+| `SERVICE_DECRYPT_SK` | **yes** | — | 32-byte X25519 private key for sealed blob decryption |
 | `NEAR_AI_API_KEY` | **yes** | — | NEAR AI Cloud API key |
+| `RELAYER_PRIVATE_KEY` | **yes** | — | 0x-prefixed 32-byte hex relayer key |
 | `NEAR_AI_BASE_URL` | no | `https://cloud-api.near.ai/v1` | NEAR AI base URL |
 | `NEAR_AI_MODEL` | no | `qwen3-30b` | LLM model name |
 | `NEAR_AI_TIMEOUT_MS` | no | `8000` | LLM call timeout in ms |
-| `RELAYER_PRIVATE_KEY` | **yes** | — | 0x-prefixed 32-byte hex relayer key |
 | `HOODI_RPC_URL` | no | `https://public.hoodi.rpc.status.network` | Status Network Hoodi RPC |
 | `BARGO_ESCROW_ADDRESS` | no | `0x000...` | BargoEscrow contract address |
 | `KARMA_READER_ADDRESS` | no | `0x000...` | KarmaReader contract address |
@@ -50,7 +62,7 @@ Copy `.env.example` and fill in the required values.
 
 ```bash
 cp .env.example .env
-# Fill in NEAR_AI_API_KEY and RELAYER_PRIVATE_KEY — no MOCK_TEE needed
+# Fill in SERVICE_DECRYPT_SK, NEAR_AI_API_KEY, and RELAYER_PRIVATE_KEY
 pnpm dev
 ```
 
@@ -60,11 +72,14 @@ On startup, the service runs a **Phase-0 acceptance check**: calls `GET /v1/atte
 
 | Method | Path | Response | Notes |
 |--------|------|----------|-------|
-| POST | `/listing` | 201 `{ listingId, onchainTxHash: null }` | Plaintext reservation accepted |
+| GET | `/service-pubkey` | 200 `{ pubkey: Hex, issuedAt: number }` | X25519 pubkey for sealing blobs |
+| POST | `/listing` | 201 `{ listingId, onchainTxHash: null }` | Accepts sealed enc_* blobs only |
 | POST | `/offer` | 202 `{ offerId, negotiationId, status:'queued' }` | Fires NEAR AI async; poll /status |
 | GET | `/status/:negotiationId` | 200 `GetStatusResponse` | States: queued→running→agreement/fail→settled |
 | GET | `/attestation/:dealId` | 200 `NearAiAttestationBundle` | Raw NEAR AI bundle JSON |
 | POST | `/attestation-receipt` | 200 `{ ok: true }` | Records acknowledgement |
+| POST | `/intents` | 201 `{ intentId }` | Register sealed standing intent |
+| GET | `/intent-matches` | 200 `{ matches: IntentMatch[] }` | Poll matchmaker results |
 
 ## Attestation bundle storage
 
@@ -75,9 +90,9 @@ Each successful negotiation writes `./data/attestations/<dealId>.json` in RFC 87
 3. Compute `keccak256(canonical(bundle))` — must equal the on-chain hash
 4. Run `node scripts/verify-attestation.mjs --dealId <dealId>` for full TDX + NRAS verification
 
-## DB privacy (auto-purge)
+## DB privacy model (V3)
 
-Plaintext columns (`plaintext_min_sell`, `plaintext_seller_conditions`, `plaintext_max_buy`, `plaintext_buyer_conditions`) are NULLed automatically when `negotiations.state` reaches `'completed'` via a SQLite trigger. Completed deals retain only: `agreed_price`, `agreed_conditions_hash`, `near_ai_attestation_hash`, `attestation_bundle_path`.
+The V3 schema contains no plaintext columns. All reservation data is stored as AEAD-protected `enc_*` blobs — safe to retain indefinitely without purging. Plaintext is reconstructed only in ephemeral request-scope memory and discarded immediately after the NEAR AI call. No auto-purge trigger is needed or present.
 
 ## Auto-discovery (Standing Intents)
 
