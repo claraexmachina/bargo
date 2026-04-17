@@ -75,6 +75,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bargo/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@bargo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
