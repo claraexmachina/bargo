@@ -54,6 +54,7 @@ contract HaggleEscrow {
     error ListingNotActive(bytes32 listingId);
     error DealNotLocked(bytes32 dealId);
     error DealNotPending(bytes32 dealId);
+    error DealNotInNoShow(bytes32 dealId);
     error NotParticipant(address who);
     error AlreadyConfirmed(address who);
     error SettlementWindowOpen(bytes32 dealId);
@@ -314,7 +315,7 @@ contract HaggleEscrow {
     /// @notice After NOSHOW, buyer pulls the refund.
     function refund(bytes32 dealId) external {
         Deal storage deal = _deals[dealId];
-        if (deal.state != DealState.NOSHOW) revert DealNotLocked(dealId);
+        if (deal.state != DealState.NOSHOW) revert DealNotInNoShow(dealId);
         if (msg.sender != deal.buyer) revert NotParticipant(msg.sender);
 
         deal.state = DealState.REFUNDED;
@@ -327,20 +328,15 @@ contract HaggleEscrow {
 
     // ─── cancel ───
 
-    /// @notice Buyer cancels a pending offer (before settlement), decrementing throughput.
+    /// @notice Buyer cancels a settled-but-not-locked deal (state PENDING).
+    /// @dev settleNegotiation already decremented activeNegotiations — no double-decrement here.
     function cancelOffer(bytes32 dealId) external {
         Deal storage deal = _deals[dealId];
         if (deal.state != DealState.PENDING) revert DealNotPending(dealId);
         if (msg.sender != deal.buyer) revert NotParticipant(msg.sender);
 
         deal.state = DealState.REFUNDED;
-
-        uint256 current = activeNegotiations[msg.sender];
-        if (current > 0) {
-            unchecked {
-                activeNegotiations[msg.sender] = current - 1;
-            }
-        }
+        // activeNegotiations was already decremented in settleNegotiation — do not decrement again.
     }
 
     // ─── views ───

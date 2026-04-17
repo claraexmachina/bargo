@@ -1,8 +1,11 @@
 // Negotiation engine — orchestrates PLAN_V2 §2.2 steps A→J.
 // Pure async function; no side effects except DB writes + disk writes.
 
-import { keccak256, encodePacked } from 'viem';
-import type { DealId, ListingId, OfferId, KarmaTier, NearAiAttestation, NearAiAttestationBundle, FailureReason } from '@haggle/shared';
+import { toBytes } from 'viem';
+import { keccak256 } from 'viem';
+// @ts-ignore — canonicalize has no bundled types
+import canonicalize from 'canonicalize';
+import type { DealId, ListingId, OfferId, KarmaTier, NearAiAttestation, NearAiAttestationBundle, AgreedConditions, FailureReason } from '@haggle/shared';
 import { parseConditionsPair, LLMTimeoutError } from '../nearai/client.js';
 import { fetchAttestation, saveAttestationBundle } from '../nearai/attestation.js';
 import { matchConditions } from './conditions.js';
@@ -32,6 +35,7 @@ export type NegotiationResult =
       kind: 'agreement';
       attestation: NearAiAttestation;
       bundle: NearAiAttestationBundle;
+      attestationBundlePath: string;
     }
   | {
       kind: 'fail';
@@ -98,14 +102,13 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
     baseURL: opts.nearAiBaseURL,
   });
 
-  // G. Compute agreedConditionsHash = keccak256(canonical JSON of AgreedConditions)
-  // We use abi-encode for determinism (no external dep needed)
-  const agreedConditionsHash = keccak256(
-    encodePacked(
-      ['string', 'string', 'string'],
-      [agreedConditions.location, agreedConditions.meetTimeIso, agreedConditions.payment],
-    ),
-  );
+  // G. Compute agreedConditionsHash = keccak256(canonicalize(AgreedConditions)).
+  // Canonicalized JSON (RFC 8785) avoids length-ambiguity of encodePacked on strings
+  // and produces a hash verifiable by any standard JSON canonicalizer.
+  const agreedConditionsForHash: AgreedConditions = agreedConditions;
+  const canonicalConditions = canonicalize(agreedConditionsForHash) as string | undefined;
+  if (!canonicalConditions) throw new Error('canonicalize returned undefined for agreedConditions');
+  const agreedConditionsHash = keccak256(toBytes(canonicalConditions)) as `0x${string}`;
 
   // H. Persist attestation bundle to disk
   const attestationBundlePath = saveAttestationBundle(
@@ -114,13 +117,14 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
     bundle,
   );
 
-  // I. Build NearAiAttestation
+  // I. Build NearAiAttestation — include agreedConditionsHash as a distinct field
   const attestation: NearAiAttestation = {
     dealId: opts.dealId,
     listingId: opts.listingId,
     offerId: opts.offerId,
     agreedPrice: agreedPriceWei.toString(),
     agreedConditions,
+    agreedConditionsHash,
     modelId: opts.nearAiModel,
     completionId,
     nonce,
@@ -129,8 +133,5 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
     ts: Math.floor(Date.now() / 1000),
   };
 
-  // Suppress unused variable warning — path is needed only as side-effect record
-  void attestationBundlePath;
-
-  return { kind: 'agreement', attestation, bundle };
+  return { kind: 'agreement', attestation, bundle, attestationBundlePath };
 }

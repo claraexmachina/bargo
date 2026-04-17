@@ -110,6 +110,11 @@ describe('runNegotiation — happy path', () => {
     expect(result.attestation.completionId).toBe('chatcmpl-test');
     expect(result.attestation.agreedConditions.location).toBe('gangnam');
     expect(result.attestation.agreedConditions.payment).toBe('cash');
+    // agreedConditionsHash must be a distinct hex (not same as nearAiAttestationHash)
+    expect(result.attestation.agreedConditionsHash).toMatch(/^0x[0-9a-fA-F]{64}$/);
+    expect(result.attestation.agreedConditionsHash).not.toBe(result.attestation.nearAiAttestationHash);
+    // attestationBundlePath is now returned from engine
+    expect(result.attestationBundlePath).toBe('/tmp/test.json');
     // agreedPrice within ZOPA: 800000..950000
     const price = BigInt(result.attestation.agreedPrice);
     expect(price).toBeGreaterThanOrEqual(800000n);

@@ -412,6 +412,52 @@ contract HaggleEscrowTest is Test {
         escrow.confirmMeetup(dealId);
     }
 
+    // ─── cancelOffer ───
+
+    function test_cancelOffer_afterSettle_noDoubleDecrement() public {
+        // Submit → settle → cancel must NOT double-decrement activeNegotiations.
+        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+
+        assertEq(escrow.activeNegotiations(buyer), 1);
+
+        bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
+        // settleNegotiation decrements → 0
+        assertEq(escrow.activeNegotiations(buyer), 0);
+
+        // Cancel: deal.state == PENDING — should succeed but NOT decrement (already at 0)
+        vm.prank(buyer);
+        escrow.cancelOffer(dealId);
+
+        // Counter must remain 0, not underflow or go negative
+        assertEq(escrow.activeNegotiations(buyer), 0);
+
+        // State must be REFUNDED
+        HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
+        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.REFUNDED));
+    }
+
+    function test_cancelOffer_beforeSettle_reverts() public {
+        // There is no deal before settle — DealNotPending should revert.
+        bytes32 fakeId = keccak256("fake-deal");
+        vm.prank(buyer);
+        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.DealNotPending.selector, fakeId));
+        escrow.cancelOffer(fakeId);
+    }
+
+    // ─── refund error ───
+
+    function test_refund_wrongState_reverts_DealNotInNoShow() public {
+        // refund() when state is PENDING (not NOSHOW) should revert with DealNotInNoShow.
+        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+        bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
+
+        vm.prank(buyer);
+        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.DealNotInNoShow.selector, dealId));
+        escrow.refund(dealId);
+    }
+
     function test_doubleConfirmReverts() public {
         bytes32 listingId = _registerListing(0, ASK_PRICE);
         bytes32 offerId = _submitOffer(buyer, listingId);

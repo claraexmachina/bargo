@@ -32,9 +32,12 @@ export async function submitSettlement(opts: SubmitSettlementOpts): Promise<Hex>
     transport: http(opts.rpcUrl),
   }).extend(publicActions);
 
-  // Simulate first to get a descriptive revert reason
+  // Simulate first to surface revert reason, then write using the exact same
+  // calldata from the simulation result — eliminates the race window between
+  // simulate and write, and ensures nonce is consumed atomically.
+  let simulateRequest: Parameters<typeof walletClient.writeContract>[0];
   try {
-    await walletClient.simulateContract({
+    const simulateResult = await walletClient.simulateContract({
       address: opts.escrowAddress,
       abi: haggleEscrowAbi,
       functionName: 'settleNegotiation',
@@ -47,24 +50,13 @@ export async function submitSettlement(opts: SubmitSettlementOpts): Promise<Hex>
       ],
       account,
     });
+    simulateRequest = simulateResult.request as Parameters<typeof walletClient.writeContract>[0];
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`settleNegotiation simulation reverted: ${message}`);
   }
 
-  const txHash = await walletClient.writeContract({
-    address: opts.escrowAddress,
-    abi: haggleEscrowAbi,
-    functionName: 'settleNegotiation',
-    args: [
-      opts.listingId,
-      opts.offerId,
-      opts.agreedPriceWei,
-      opts.agreedConditionsHash,
-      opts.nearAiAttestationHash,
-    ],
-    account,
-  });
+  const txHash = await walletClient.writeContract(simulateRequest);
 
   // Wait for 1 block confirmation
   const publicClient = createPublicClient({

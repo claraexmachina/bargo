@@ -2,8 +2,9 @@
 // Validates RLN proof, checks Karma gate, inserts offer, fires engine negotiation.
 // Returns 202 immediately; client polls GET /status/:negotiationId.
 //
-// offerId:  keccak256(abiEncodePacked(['address','bytes32','uint256'], [buyer, listingId, nonce]))
+// offerId:  provided by caller (on-chain id from buyer's submitOffer tx)
 // dealId:   keccak256(abiEncodePacked(['bytes32','bytes32'], [listingId, offerId]))
+//           — matches HaggleEscrow.settleNegotiation's dealId derivation
 
 import type { FastifyInstance } from 'fastify';
 import { keccak256, encodePacked } from 'viem';
@@ -14,17 +15,21 @@ import {
   createNegotiation,
   updateNegotiationState,
   updateNegotiationAttestation,
-  nextCounter,
   getListingById,
   bufferToHex,
 } from '../db/client.js';
 import { verifyRlnProof } from '../rln/verify.js';
 import { canOffer, getActiveNegotiations, getTier } from '../chain/read.js';
+import { verifyOfferOnChain } from '../chain/verifyIds.js';
 import { runNegotiation } from '../negotiate/engine.js';
 import { submitSettlement } from '../chain/relayer.js';
 import type Database from 'better-sqlite3';
 import type { ChainDeps } from './index.js';
 import type { NearAiConfig } from './index.js';
+
+// In-memory lock: prevents duplicate concurrent /offer requests for the same (buyer, listingId).
+// Key: `${buyer}:${listingId}`. Cleared when the negotiation finishes (success or fail).
+const _inFlightNegotiations = new Set<string>();
 
 export async function offerRoutes(
   app: FastifyInstance,
@@ -93,19 +98,37 @@ export async function offerRoutes(
       });
     }
 
-    // 5. Generate IDs
-    const nonce = nextCounter(opts.db, `offer:${body.buyer}:${body.listingId}`);
-    const offerId = keccak256(
-      encodePacked(
-        ['address', 'bytes32', 'uint256'],
-        [body.buyer, body.listingId, BigInt(nonce)],
-      ),
-    ) as OfferId;
+    // 5. Concurrency guard — reject duplicate in-flight (buyer, listingId) pairs
+    const inflightKey = `${body.buyer}:${body.listingId}`;
+    if (_inFlightNegotiations.has(inflightKey)) {
+      app.log.warn({ buyer: body.buyer, listingId: body.listingId }, 'duplicate offer in-flight');
+      return reply.code(409).send({
+        error: { code: 'negotiation-in-flight', message: 'A negotiation for this listing is already in progress' },
+      });
+    }
+
+    // 6. Verify offerId exists on-chain (BLOCKER A1 fix)
+    //    offerId comes from buyer's on-chain submitOffer tx; service trusts the chain, not its own counter.
+    const offerId = body.offerId as OfferId;
+    try {
+      await verifyOfferOnChain(opts.chain.client, opts.chain.haggleEscrowAddress, offerId);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'onchain-offer-not-found') {
+        app.log.warn({ offerId, buyer: body.buyer }, 'offerId not found on-chain');
+        return reply.code(400).send({
+          error: { code: 'onchain-offer-not-found', message: 'Offer not found on-chain — submit the transaction first' },
+        });
+      }
+      throw err;
+    }
+
+    // 7. Derive negotiationId = keccak256(listingId || offerId) — same as contract's dealId
     const negotiationId = keccak256(
       encodePacked(['bytes32', 'bytes32'], [body.listingId, offerId]),
     ) as DealId;
 
-    // 6. Insert offer + create negotiation (state: queued)
+    // 8. Insert offer + create negotiation (state: queued)
     insertOffer(opts.db, {
       id: offerId,
       listingId: body.listingId as ListingId,
@@ -123,7 +146,7 @@ export async function offerRoutes(
       offerId,
     });
 
-    // 7. Load seller tier for engine
+    // 9. Load seller tier for engine
     const sellerTier = await getTier(
       opts.chain.client,
       opts.chain.karmaReaderAddress,
@@ -132,7 +155,8 @@ export async function offerRoutes(
 
     const itemMeta = JSON.parse(listing.item_meta_json) as { title: string };
 
-    // 8. Fire-and-forget negotiation engine
+    // 10. Acquire in-flight lock then fire-and-forget
+    _inFlightNegotiations.add(inflightKey);
     void fireNegotiation({
       db: opts.db,
       negotiationId,
@@ -154,6 +178,7 @@ export async function offerRoutes(
       haggleEscrowAddress: opts.haggleEscrowAddress,
       hoodiRpcUrl: opts.chain.rpcUrl,
       log: app.log,
+      inflightKey,
     });
 
     return reply.code(202).send({
@@ -185,6 +210,7 @@ interface FireNegotiationParams {
   haggleEscrowAddress: `0x${string}`;
   hoodiRpcUrl: string;
   log: FastifyInstance['log'];
+  inflightKey: string;
 }
 
 async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
@@ -216,15 +242,15 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
     }
 
     // Agreement — persist attestation metadata
-    const { attestation, bundle } = result;
+    const { attestation, bundle: _bundle, attestationBundlePath } = result;
 
     updateNegotiationAttestation(p.db, p.negotiationId, {
-      agreedConditionsHash: attestation.nearAiAttestationHash, // reuse nonce-bounded hash
+      agreedConditionsHash: attestation.agreedConditionsHash, // distinct from nearAiAttestationHash
       nearAiAttestationHash: attestation.nearAiAttestationHash,
       agreedConditionsJson: JSON.stringify(attestation.agreedConditions),
       modelId: attestation.modelId,
       completionId: attestation.completionId,
-      attestationBundlePath: `${p.attestationDir}/${p.negotiationId}.json`,
+      attestationBundlePath,
     });
 
     updateNegotiationState(p.db, p.negotiationId, 'agreement', { attestation });
@@ -238,7 +264,7 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
         listingId: p.listingId,
         offerId: p.offerId,
         agreedPriceWei: BigInt(attestation.agreedPrice),
-        agreedConditionsHash: attestation.nearAiAttestationHash,
+        agreedConditionsHash: attestation.agreedConditionsHash, // correct distinct field
         nearAiAttestationHash: attestation.nearAiAttestationHash,
         relayerPrivateKey: p.relayerPrivateKey,
         rpcUrl: p.hoodiRpcUrl,
@@ -255,11 +281,12 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
       p.log.error({ negotiationId: p.negotiationId, err: message }, 'relayer submission failed — state stays agreement');
       // Keep state as 'agreement' — will be retried manually or by watcher
     }
-
-    void bundle; // bundle is saved to disk inside engine.ts via saveAttestationBundle
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error';
     p.log.error({ negotiationId: p.negotiationId, err: message }, 'negotiation crashed');
     updateNegotiationState(p.db, p.negotiationId, 'fail', { failureReason: 'llm_timeout' });
+  } finally {
+    // Always release the concurrency lock
+    _inFlightNegotiations.delete(p.inflightKey);
   }
 }

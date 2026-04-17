@@ -2,16 +2,13 @@
 // Registers a new listing with plaintext reservation data (V2 — no encryption).
 // GET /listings + GET /listing/:id return public fields only (plaintext reservation never exposed).
 //
-// listingId computation:
-//   keccak256(abiEncodePacked(['address','uint256','uint256'], [seller, askPrice, nonce]))
+// listingId: provided by caller (on-chain id from seller's registerListing tx).
 
 import type { FastifyInstance } from 'fastify';
-import { keccak256, encodePacked } from 'viem';
 import { postListingRequestSchema } from '@haggle/shared';
-import type { ListingMeta, KarmaTier } from '@haggle/shared';
+import type { ListingMeta, KarmaTier, ListingId } from '@haggle/shared';
 import {
   insertListing,
-  nextCounter,
   getListingById,
   listOpenListings,
   bufferToHex,
@@ -69,15 +66,9 @@ export async function listingRoutes(
 
     const body = result.data;
 
-    // Per-seller monotonic nonce to avoid ID collisions across restarts
-    const nonce = nextCounter(opts.db, `listing:${body.seller}`);
-
-    const listingId = keccak256(
-      encodePacked(
-        ['address', 'uint256', 'uint256'],
-        [body.seller, BigInt(body.askPrice), BigInt(nonce)],
-      ),
-    );
+    // listingId is the on-chain id produced by the seller's registerListing tx.
+    // The service stores it as-is and does not derive it independently.
+    const listingId = body.listingId as ListingId;
 
     insertListing(opts.db, {
       id: listingId,
@@ -93,7 +84,7 @@ export async function listingRoutes(
 
     return reply.code(201).send({
       listingId,
-      onchainTxHash: null,
+      onchainTxHash: body.onchainTxHash,
     });
   });
 }
