@@ -1,21 +1,34 @@
 // ============================================================
 // packages/shared/src/types.ts
-// Bargo V2 — NEAR AI Cloud TEE architecture.
-// See PLAN_V2.md §3.1 for the full spec. Frozen at Phase 1 start.
-// Any change requires A+B+C sign-off + version bump.
+// Bargo V3 — Sealed-bid marketplace.
+// Listings have NO public price. Only reservation prices submitted sealed.
+// Service receives ciphertext, decrypts ephemerally in-memory (never logs),
+// forwards plaintext into NEAR AI TEE, discards after.
 // ============================================================
 
 // --- primitives ---
 export type Hex = `0x${string}`;
 export type Address = Hex;
-export type ListingId = Hex; // keccak256(seller || nonce), bytes32
-export type OfferId = Hex; // keccak256(buyer || listingId || nonce), bytes32
+export type ListingId = Hex; // bytes32, derived on-chain from (seller, nonce, block.timestamp)
+export type OfferId = Hex; // bytes32, derived on-chain from (buyer, listingId, block.timestamp)
 export type DealId = Hex; // keccak256(listingId || offerId), bytes32
 
 // --- Karma ---
 export type KarmaTier = 0 | 1 | 2 | 3;
 
-// --- Listing & Offer (public — no reservation data exposed) ---
+// --- Encryption envelope ---
+// X25519 ECDH → HKDF-SHA256 → XChaCha20-Poly1305.
+// Client seals reservation price + conditions to the service's attested pubkey.
+// Service decrypts only in ephemeral request-scope memory, never logged,
+// never written to DB as plaintext. DB stores only the envelope JSON.
+export interface EncryptedBlob {
+  v: 1; // envelope protocol version
+  ephPub: Hex; // 32-byte ephemeral X25519 pubkey (sender)
+  nonce: Hex; // 24-byte XChaCha20 nonce
+  ct: Hex; // ciphertext || poly1305 tag
+}
+
+// --- Listing & Offer (PUBLIC fields; no reservation/price leaks) ---
 export interface ListingMeta {
   title: string;
   description: string;
@@ -23,26 +36,26 @@ export interface ListingMeta {
   images: string[]; // IPFS or data URLs (demo)
 }
 
+// Listings show NO price. Only metadata + Karma tier gate.
 export interface ListingPublic {
   id: ListingId;
   seller: Address;
-  askPrice: string; // wei as decimal string (bigint-safe over JSON)
-  requiredKarmaTier: KarmaTier;
+  requiredKarmaTier: KarmaTier; // seller-chosen gate (higher for high-value items)
   itemMeta: ListingMeta;
   status: 'open' | 'negotiating' | 'settled' | 'completed' | 'cancelled';
   createdAt: number;
 }
 
+// Offers have NO public bid price. The buyer's max is sealed.
 export interface OfferPublic {
   id: OfferId;
   listingId: ListingId;
   buyer: Address;
-  bidPrice: string;
   status: 'pending' | 'matched' | 'failed' | 'withdrawn';
   createdAt: number;
 }
 
-// --- Conditions (structured output from NEAR AI LLM) ---
+// --- Conditions (structured output from NEAR AI LLM inside the TEE) ---
 export interface ConditionStruct {
   location: string[];
   timeWindow: {
@@ -63,16 +76,14 @@ export interface AgreedConditions {
 // --- NEAR AI attestation ---
 // Nonce = keccak256(dealId || completionId) — binds attestation to a specific inference.
 // nearAiAttestationHash = keccak256(canonicalize(full attestation bundle JSON)).
-// Full bundle (quote + gpu_evidence + signing_key + signed_response + signature)
-// is served by GET /attestation/:dealId on the negotiation service.
 export interface NearAiAttestation {
   dealId: DealId;
   listingId: ListingId;
   offerId: OfferId;
-  agreedPrice: string;
+  agreedPrice: string; // wei as decimal string — the only price ever revealed
   agreedConditions: AgreedConditions;
-  agreedConditionsHash: Hex; // keccak256(canonical(agreedConditions)) — distinct from attestation hash
-  modelId: string; // "qwen3-30b" or fallback
+  agreedConditionsHash: Hex; // keccak256(canonical(agreedConditions))
+  modelId: string; // "qwen3-30b"
   completionId: string; // NEAR AI chat completion id
   nonce: Hex; // keccak256(dealId || completionId)
   nearAiAttestationHash: Hex; // keccak256 of canonical attestation bundle
@@ -80,7 +91,7 @@ export interface NearAiAttestation {
   ts: number;
 }
 
-// --- RLN proof (unchanged from V1) ---
+// --- RLN proof ---
 export interface RLNProof {
   epoch: number;
   proof: Hex;
@@ -89,15 +100,24 @@ export interface RLNProof {
   rlnIdentityCommitment: Hex;
 }
 
+// --- Service encryption pubkey ---
+// Fetched by clients before sealing reservation data.
+// In production this pubkey is attested by the service's TEE (future work);
+// for the hackathon the service simply publishes a stable X25519 pubkey.
+export interface GetServicePubkeyResponse {
+  pubkey: Hex; // 32-byte X25519 pubkey
+  issuedAt: number; // unix seconds for rotation tracking
+}
+
 // --- REST DTOs ---
+// NOTE: no ask/bid prices anywhere. Reservation data is strictly inside EncryptedBlob.
 export interface PostListingRequest {
-  listingId: ListingId; // on-chain id produced by seller's registerListing tx; service validates against chain
+  listingId: ListingId; // on-chain id from seller's registerListing tx
   seller: Address;
-  askPrice: string;
   requiredKarmaTier: KarmaTier;
   itemMeta: ListingMeta;
-  plaintextMinSell: string; // wei as decimal
-  plaintextSellerConditions: string; // utf-8, max 2KB, trimmed
+  encMinSell: EncryptedBlob; // sealed plaintextMinSell (wei decimal string)
+  encSellerConditions: EncryptedBlob; // sealed natural-language conditions
   onchainTxHash: Hex; // registerListing tx hash for audit
 }
 
@@ -107,12 +127,11 @@ export interface PostListingResponse {
 }
 
 export interface PostOfferRequest {
-  offerId: OfferId; // on-chain id produced by buyer's submitOffer tx; service validates against chain
+  offerId: OfferId; // on-chain id from buyer's submitOffer tx
   buyer: Address;
   listingId: ListingId;
-  bidPrice: string;
-  plaintextMaxBuy: string;
-  plaintextBuyerConditions: string;
+  encMaxBuy: EncryptedBlob; // sealed plaintextMaxBuy (wei decimal string)
+  encBuyerConditions: EncryptedBlob; // sealed natural-language conditions
   rlnProof: RLNProof;
   onchainTxHash: Hex; // submitOffer tx hash for audit
 }
@@ -145,8 +164,6 @@ export interface PostAttestationReceiptResponse {
 }
 
 // --- NEAR AI attestation bundle (raw) — served by GET /attestation/:dealId ---
-// Shape confirmed in Phase 0 by Agent B; deviations documented in
-// docs/attestation-verification.md.
 export interface NearAiAttestationBundle {
   quote: Hex; // Intel TDX quote
   gpu_evidence: Hex; // NVIDIA evidence for NRAS
