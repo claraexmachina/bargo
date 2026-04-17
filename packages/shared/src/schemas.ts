@@ -80,6 +80,43 @@ export const getServicePubkeyResponseSchema = z.object({
 });
 export type GetServicePubkeyResponseParsed = z.infer<typeof getServicePubkeyResponseSchema>;
 
+// --- Standing Intents ---
+const intentFiltersSchema = z.object({
+  category: z.enum(['electronics', 'fashion', 'furniture', 'other']).optional(),
+  requiredKarmaTierCeiling: karmaTierSchema.optional(),
+});
+
+export const postIntentRequestSchema = z.object({
+  buyer: addressSchema,
+  encMaxBuy: encryptedBlobSchema,
+  encBuyerConditions: encryptedBlobSchema,
+  filters: intentFiltersSchema,
+  expiresAt: z.number().int().positive(),
+});
+export type PostIntentRequestParsed = z.infer<typeof postIntentRequestSchema>;
+
+export const postIntentResponseSchema = z.object({
+  intentId: hexSchema,
+});
+export type PostIntentResponseParsed = z.infer<typeof postIntentResponseSchema>;
+
+export const getIntentMatchesResponseSchema = z.object({
+  matches: z.array(
+    z.object({
+      intentId: hexSchema,
+      listingId: listingIdSchema,
+      seller: addressSchema,
+      itemMeta: listingMetaSchema,
+      requiredKarmaTier: karmaTierSchema,
+      score: z.enum(['match', 'likely', 'uncertain']),
+      matchReason: z.string().max(200),
+      matchedAt: z.number().int().positive(),
+      acknowledged: z.boolean(),
+    }),
+  ),
+});
+export type GetIntentMatchesResponseParsed = z.infer<typeof getIntentMatchesResponseSchema>;
+
 export const postOfferResponseSchema = z.object({
   offerId: offerIdSchema,
   negotiationId: dealIdSchema,
