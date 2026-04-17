@@ -2,15 +2,14 @@
  * REST client for Negotiation Service.
  * All public state goes through these functions — no raw fetch elsewhere.
  *
- * Env vars:
+ * Env var:
  *   NEXT_PUBLIC_NEGOTIATION_SERVICE_URL  — defaults to http://localhost:3001
- *   NEXT_PUBLIC_MOCK_TEE_PUBKEY          — if set, /tee-pubkey falls back to this
  */
 import type {
   DealId,
   GetStatusResponse,
-  GetTeePubkeyResponse,
   ListingId,
+  NearAiAttestationBundle,
   PostListingRequest,
   PostListingResponse,
   PostOfferRequest,
@@ -31,35 +30,6 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
-}
-
-// ─── TEE pubkey ──────────────────────────────────────────────────────────────
-
-async function fetchTeePubkey(): Promise<GetTeePubkeyResponse> {
-  try {
-    return await fetchJSON<GetTeePubkeyResponse>('/tee-pubkey');
-  } catch {
-    const mockPubkey = process.env.NEXT_PUBLIC_MOCK_TEE_PUBKEY;
-    if (mockPubkey) {
-      return {
-        pubkey: mockPubkey as `0x${string}`,
-        enclaveId: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-        modelId: 'mock/demo@v0',
-        signerAddress: '0x0000000000000000000000000000000000000000',
-        whitelistedAt: 0,
-      };
-    }
-    throw new Error('TEE pubkey unavailable and NEXT_PUBLIC_MOCK_TEE_PUBKEY not set');
-  }
-}
-
-export function useTeePubkey() {
-  return useQuery({
-    queryKey: ['tee-pubkey'],
-    queryFn: fetchTeePubkey,
-    staleTime: 5 * 60 * 1000, // cache 5 min
-    retry: 2,
-  });
 }
 
 // ─── Listings ─────────────────────────────────────────────────────────────────
@@ -137,5 +107,20 @@ export function useNegotiationStatus(
     enabled: negotiationId !== null && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? 1000,
     refetchIntervalInBackground: false,
+  });
+}
+
+// ─── Attestation bundle ───────────────────────────────────────────────────────
+
+export async function fetchAttestationBundle(dealId: DealId): Promise<NearAiAttestationBundle> {
+  return fetchJSON<NearAiAttestationBundle>(`/attestation/${dealId}`);
+}
+
+export function useAttestationBundle(dealId: DealId | null) {
+  return useQuery({
+    queryKey: ['attestation-bundle', dealId],
+    queryFn: () => fetchAttestationBundle(dealId!),
+    enabled: dealId !== null,
+    staleTime: Infinity, // attestation bundle never changes once settled
   });
 }
