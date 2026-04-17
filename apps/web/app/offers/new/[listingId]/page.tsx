@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
-import { parseEventLogs } from 'viem';
+import { parseEventLogs, encodeFunctionData } from 'viem';
 import { toast } from 'sonner';
 import type { ListingId, Hex } from '@bargo/shared';
 import { bargoEscrowAbi, ADDRESSES } from '@bargo/shared';
@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useListing, usePostOffer } from '@/lib/api';
 import { buildRLNProof } from '@/lib/rln';
 import { krwToWei, formatKRW } from '@/lib/format';
+import { lineaEstimateGas } from '@/lib/linea-estimate';
 
 const HOODI_CHAIN_ID = 374;
 
@@ -78,14 +79,29 @@ export default function NewOfferPage() {
         throw new Error('컨트랙트 주소가 설정되지 않았습니다. docs/deployments.md를 확인하세요.');
       }
 
-      // Step 1: On-chain submitOffer
+      // Step 1: On-chain submitOffer with Status Network gasless-ready gas fields.
       toast.info('지갑에서 트랜잭션을 승인하세요...');
       const rlnProofBytes = rlnProof.proof as Hex;
+      const callArgs = [listingId, bidPriceBigInt, rlnProofBytes] as const;
+      const data = encodeFunctionData({
+        abi: bargoEscrowAbi,
+        functionName: 'submitOffer',
+        args: callArgs,
+      });
+      const gasFields = await lineaEstimateGas(publicClient!, {
+        from: address,
+        to: escrowAddress,
+        data,
+      });
+
       const txHash = await writeContractAsync({
         address: escrowAddress,
         abi: bargoEscrowAbi,
         functionName: 'submitOffer',
-        args: [listingId, bidPriceBigInt, rlnProofBytes],
+        args: callArgs,
+        gas: gasFields.gas,
+        maxFeePerGas: gasFields.maxFeePerGas,
+        maxPriorityFeePerGas: gasFields.maxPriorityFeePerGas,
       });
 
       toast.info('트랜잭션 확인 중...');

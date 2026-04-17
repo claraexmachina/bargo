@@ -50,11 +50,18 @@ export ATTESTATION_RELAYER_ADDRESS=<relayer-wallet-address> # derived from RELAY
 
 #### Step 2 — Deploy
 
+Status Network gasless is currently down (RLN prover bug announced by the org);
+deploy with paid gas via explicit gas flags. Once gasless is restored, the same
+command works — no changes needed.
+
 ```bash
 cd contracts
 forge script script/Deploy.s.sol \
   --rpc-url $HOODI_RPC_URL \
   --broadcast \
+  --with-gas-price 200gwei \
+  --priority-gas-price 100gwei \
+  --slow \
   --private-key $DEPLOYER_PRIVATE_KEY
 ```
 
@@ -77,6 +84,9 @@ export EVE_ADDRESS=<eve-wallet>
 forge script script/Seed.s.sol \
   --rpc-url $HOODI_RPC_URL \
   --broadcast \
+  --with-gas-price 200gwei \
+  --priority-gas-price 100gwei \
+  --slow \
   --private-key $DEPLOYER_PRIVATE_KEY
 ```
 

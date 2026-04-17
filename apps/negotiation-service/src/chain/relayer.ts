@@ -1,10 +1,13 @@
 // Relayer — signs and submits settleNegotiation on-chain via viem WalletClient.
 // Uses RELAYER_PRIVATE_KEY env var. Waits for 1 confirmation.
+// Gas is estimated via linea_estimateGas so the tx is gasless when Status
+// Network's RLN prover + Karma tier allow it (paid gas otherwise).
 
-import { createWalletClient, createPublicClient, http, publicActions } from 'viem';
+import { createWalletClient, createPublicClient, http, publicActions, encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { hoodiChain, bargoEscrowAbi } from '@bargo/shared';
 import type { Hex, DealId, ListingId, OfferId } from '@bargo/shared';
+import { lineaEstimateGas } from './lineaEstimateGas.js';
 
 export interface SubmitSettlementOpts {
   dealId: DealId;
@@ -32,6 +35,14 @@ export async function submitSettlement(opts: SubmitSettlementOpts): Promise<Hex>
     transport: http(opts.rpcUrl),
   }).extend(publicActions);
 
+  const callArgs = [
+    opts.listingId,
+    opts.offerId,
+    opts.agreedPriceWei,
+    opts.agreedConditionsHash,
+    opts.nearAiAttestationHash,
+  ] as const;
+
   // Simulate first to surface revert reason, then write using the exact same
   // calldata from the simulation result — eliminates the race window between
   // simulate and write, and ensures nonce is consumed atomically.
@@ -41,13 +52,7 @@ export async function submitSettlement(opts: SubmitSettlementOpts): Promise<Hex>
       address: opts.escrowAddress,
       abi: bargoEscrowAbi,
       functionName: 'settleNegotiation',
-      args: [
-        opts.listingId,
-        opts.offerId,
-        opts.agreedPriceWei,
-        opts.agreedConditionsHash,
-        opts.nearAiAttestationHash,
-      ],
+      args: callArgs,
       account,
     });
     simulateRequest = simulateResult.request as Parameters<typeof walletClient.writeContract>[0];
@@ -56,7 +61,29 @@ export async function submitSettlement(opts: SubmitSettlementOpts): Promise<Hex>
     throw new Error(`settleNegotiation simulation reverted: ${message}`);
   }
 
-  const txHash = await walletClient.writeContract(simulateRequest);
+  // Status Network gasless: linea_estimateGas returns gas limit + fee fields that
+  // are zero when the sender has Karma quota (gasless), real values otherwise.
+  const data = encodeFunctionData({
+    abi: bargoEscrowAbi,
+    functionName: 'settleNegotiation',
+    args: callArgs,
+  });
+  const estimated = await lineaEstimateGas(walletClient, {
+    from: account.address,
+    to: opts.escrowAddress,
+    data,
+  });
+
+  // Gas fields injected via type-asserted spread — viem's WriteContractParameters
+  // narrows tx type by presence of fee fields; we keep the simulation's exact
+  // calldata and add EIP-1559 fee values from linea_estimateGas.
+  const writeReq = {
+    ...simulateRequest,
+    gas: estimated.gas,
+    maxFeePerGas: estimated.maxFeePerGas,
+    maxPriorityFeePerGas: estimated.maxPriorityFeePerGas,
+  } as Parameters<typeof walletClient.writeContract>[0];
+  const txHash = await walletClient.writeContract(writeReq);
 
   // Wait for 1 block confirmation
   const publicClient = createPublicClient({
