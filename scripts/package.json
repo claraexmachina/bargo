@@ -4,15 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "seal": "tsx qa-seal.mjs",
-    "scenarios": "tsx qa-scenarios.mjs"
+    "scenarios": "tsx qa-scenarios.mjs",
+    "verify": "node verify-attestation.mjs",
+    "test-verify": "node test-verify.mjs"
   },
   "dependencies": {
-    "@haggle/crypto": "workspace:*",
     "@haggle/shared": "workspace:*",
-    "@noble/ciphers": "1.2.1",
     "@noble/curves": "1.8.1",
     "@noble/hashes": "1.7.2",
+    "@noble/secp256k1": "^2.1.0",
     "viem": "^2.21.54"
   },
   "devDependencies": {
