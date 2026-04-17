@@ -1,11 +1,11 @@
+import type { Hex, NearAiAttestation } from '@bargo/shared';
+import { render, screen } from '@testing-library/react';
 /**
  * AttestationViewer: renders modelId, truncated hash, copy button.
  * Fail-safe: renders nothing when attestation is undefined.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { AttestationViewer } from '../../components/AttestationViewer';
-import type { NearAiAttestation, Hex } from '@bargo/shared';
 
 // Mock useAttestationBundle so we can control its return value per test
 type BundleResult = { data: unknown; isLoading: boolean; error: Error | null };
@@ -25,7 +25,7 @@ function hex(s: string): Hex {
 }
 
 const SAMPLE_ATTESTATION: NearAiAttestation = {
-  dealId: hex('deadbeef' + '00'.repeat(28)),
+  dealId: hex(`deadbeef${'00'.repeat(28)}`),
   listingId: hex('11'.repeat(32)),
   offerId: hex('22'.repeat(32)),
   agreedPrice: '725000000000000000000000',

@@ -1,21 +1,21 @@
 'use client';
 
-import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
-import { keccak256, toHex, parseEventLogs, encodeFunctionData } from 'viem';
-import { toast } from 'sonner';
-import { WalletConnect } from '@/components/WalletConnect';
 import { ConditionInput } from '@/components/ConditionInput';
 import { PriceInput } from '@/components/PriceInput';
+import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { usePostListing } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
 import { lineaEstimateGas } from '@/lib/linea-estimate';
-import type { KarmaTier, Hex } from '@bargo/shared';
-import { bargoEscrowAbi, ADDRESSES } from '@bargo/shared';
+import type { Hex, KarmaTier } from '@bargo/shared';
+import { ADDRESSES, bargoEscrowAbi } from '@bargo/shared';
+import { useRouter } from 'next/navigation';
+import * as React from 'react';
+import { toast } from 'sonner';
+import { encodeFunctionData, keccak256, parseEventLogs, toHex } from 'viem';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 
 const CATEGORIES = [
   { value: 'electronics', label: '전자기기' },
@@ -42,7 +42,8 @@ export default function NewListingPage() {
 
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
-  const [category, setCategory] = React.useState<typeof CATEGORIES[number]['value']>('electronics');
+  const [category, setCategory] =
+    React.useState<(typeof CATEGORIES)[number]['value']>('electronics');
   const [askPriceKrw, setAskPriceKrw] = React.useState('');
   const [minPriceKrw, setMinPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
@@ -119,7 +120,7 @@ export default function NewListingPage() {
       toast.info('트랜잭션 확인 중...');
 
       // Step 2: Wait for receipt + parse ListingCreated event
-      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
+      const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
       const logs = parseEventLogs({
         abi: bargoEscrowAbi,
@@ -208,7 +209,10 @@ export default function NewListingPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label htmlFor="title" className="text-sm font-medium">
-                제목 <span className="text-destructive" aria-hidden="true">*</span>
+                제목{' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
               </label>
               <Input
                 id="title"
@@ -261,7 +265,10 @@ export default function NewListingPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label htmlFor="ask-price" className="text-sm font-medium">
-                희망가 (공개) <span className="text-destructive" aria-hidden="true">*</span>
+                희망가 (공개){' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
               </label>
               <PriceInput
                 id="ask-price"
@@ -274,7 +281,10 @@ export default function NewListingPage() {
 
             <div className="space-y-1">
               <label htmlFor="min-price" className="text-sm font-medium">
-                최저가 — 마지노선 (비공개) <span className="text-destructive" aria-hidden="true">*</span>
+                최저가 — 마지노선 (비공개){' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
               </label>
               <PriceInput
                 id="min-price"
@@ -285,7 +295,8 @@ export default function NewListingPage() {
                 label="최저 판매가 (원)"
               />
               <p className="text-sm text-muted-foreground">
-                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수 없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
+                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수
+                없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
               </p>
             </div>
           </CardContent>
@@ -331,19 +342,18 @@ export default function NewListingPage() {
               ))}
             </select>
             <p className="text-sm text-muted-foreground mt-1.5">
-              고가 매물(50만원+)은 스마트 컨트랙트에서 Tier 2 이상만 오퍼 가능하도록 자동 제한됩니다.
+              고가 매물(50만원+)은 스마트 컨트랙트에서 Tier 2 이상만 오퍼 가능하도록 자동
+              제한됩니다.
             </p>
           </CardContent>
         </Card>
 
         {/* Submit — bottom of screen, thumb-reachable */}
-        <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-            className="flex-1"
-          >
+        <div
+          className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
             취소
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1" size="lg">

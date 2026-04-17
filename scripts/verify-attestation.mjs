@@ -13,11 +13,11 @@
 //   NEAR_AI_MR_TD    (pinned TDX measurement — skipped if unset)
 //   BARGO_ESCROW_ADDRESS  (required for --dealId onchain lookup)
 
-import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { createPublicClient, http, keccak256 } from 'viem';
+import { readFileSync } from 'node:fs';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
+import { http, createPublicClient, keccak256 } from 'viem';
 
 // RFC 8785 canonicalize — same package used by the negotiation service's attestation.ts.
 // This ensures the hash computed here matches the on-chain hash exactly, including
@@ -101,7 +101,8 @@ async function fetchOnchainAttestationHash(dealId) {
     args: { dealId },
     fromBlock: 0n,
   });
-  if (logs.length === 0) throw new Error(`DEAL_NOT_SETTLED — no NegotiationSettled log for dealId=${dealId}`);
+  if (logs.length === 0)
+    throw new Error(`DEAL_NOT_SETTLED — no NegotiationSettled log for dealId=${dealId}`);
   return logs[0].args.nearAiAttestationHash;
 }
 
@@ -231,7 +232,8 @@ async function main() {
 
   // ── Step 4: NVIDIA NRAS ────────────────────────────────────────────────────────
   // Skip for zeroed gpu_evidence (fixture/test mode)
-  const isZeroEvidence = bundle.gpu_evidence === ('0x' + '00'.repeat(bundle.gpu_evidence.length / 2 - 1));
+  const isZeroEvidence =
+    bundle.gpu_evidence === `0x${'00'.repeat(bundle.gpu_evidence.length / 2 - 1)}`;
   if (isZeroEvidence) {
     checks.nvidiaGpuAttestation = 'skipped — zeroed gpu_evidence (fixture/test mode)';
   } else {
@@ -244,16 +246,16 @@ async function main() {
   }
 
   // ── Step 5: Intel TDX quote ────────────────────────────────────────────────────
-  const isZeroQuote = bundle.quote === ('0x' + '00'.repeat(bundle.quote.length / 2 - 1));
+  const isZeroQuote = bundle.quote === `0x${'00'.repeat(bundle.quote.length / 2 - 1)}`;
   if (isZeroQuote) {
     checks.intelTdxQuote = 'skipped — zeroed quote (fixture/test mode)';
     checks.mrTdPinMatch = 'skipped — zeroed quote (fixture/test mode)';
   } else {
     const tdx = runDcapQvl(bundle.quote);
     if (tdx.skipped) {
-      checks.intelTdxQuote = `skipped — dcap-qvl not installed`;
-      checks.mrTdPinMatch = `skipped — dcap-qvl not installed`;
-      console.warn(`[warn] dcap-qvl not found. Install with: cargo install dcap-qvl`);
+      checks.intelTdxQuote = 'skipped — dcap-qvl not installed';
+      checks.mrTdPinMatch = 'skipped — dcap-qvl not installed';
+      console.warn('[warn] dcap-qvl not found. Install with: cargo install dcap-qvl');
     } else {
       checks.intelTdxQuote = tdx.ok;
       if (!tdx.ok) fail('TDX_QUOTE_INVALID');
@@ -263,7 +265,9 @@ async function main() {
         if (!checks.mrTdPinMatch) fail('MR_TD_MISMATCH');
       } else {
         checks.mrTdPinMatch = 'skipped — NEAR_AI_MR_TD not set (set env var to enable pinning)';
-        console.warn('[warn] NEAR_AI_MR_TD not set — MR_TD pinning check skipped. ECDSA + NRAS checks still provide meaningful assurance.');
+        console.warn(
+          '[warn] NEAR_AI_MR_TD not set — MR_TD pinning check skipped. ECDSA + NRAS checks still provide meaningful assurance.',
+        );
       }
     }
   }
@@ -286,7 +290,7 @@ function hexToBytes(hex) {
   const h = hex.startsWith('0x') ? hex.slice(2) : hex;
   const bytes = new Uint8Array(h.length / 2);
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+    bytes[i] = Number.parseInt(h.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
 }

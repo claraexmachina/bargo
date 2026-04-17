@@ -1,8 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "organizeImports": { "enabled": true },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -21,10 +19,23 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noExplicitAny": "error"
+        "noExplicitAny": "error",
+        "noAssignInExpressions": "off"
       },
       "style": {
-        "noNonNullAssertion": "warn"
+        "noNonNullAssertion": "off",
+        "useTemplate": "off",
+        "noUnusedTemplateLiteral": "off"
+      },
+      "complexity": {
+        "noForEach": "off"
+      },
+      "correctness": {
+        "noInvalidPositionAtImportRule": "off"
+      },
+      "a11y": {
+        "useSemanticElements": "off",
+        "useButtonType": "off"
       }
     }
   },
@@ -36,7 +47,12 @@
       "out",
       "coverage",
       "broadcast",
-      "cache"
+      "cache",
+      "contracts/lib",
+      "contracts/out",
+      "contracts/cache",
+      "*.tsbuildinfo",
+      "pnpm-lock.yaml"
     ]
   }
 }

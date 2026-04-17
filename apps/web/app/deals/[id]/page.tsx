@@ -1,15 +1,15 @@
 'use client';
 
-import * as React from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useAccount, useSignMessage } from 'wagmi';
-import { toast } from 'sonner';
-import type { DealId, Hex } from '@bargo/shared';
-import { useNegotiationStatus } from '@/lib/api';
-import { NegotiationStatus } from '@/components/NegotiationStatus';
 import { MeetupQR } from '@/components/MeetupQR';
+import { NegotiationStatus } from '@/components/NegotiationStatus';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useNegotiationStatus } from '@/lib/api';
+import type { DealId, Hex } from '@bargo/shared';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import * as React from 'react';
+import { toast } from 'sonner';
+import { useAccount, useSignMessage } from 'wagmi';
 
 // Dynamic import for canvas-confetti (client only, ~3KB)
 let confetti: ((opts: object) => void) | null = null;
@@ -23,7 +23,7 @@ export default function DealPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const dealId = params['id'] as DealId;
+  const dealId = params.id as DealId;
   // Passed from offer submission — used to pre-fill retry form
   const retryListingId = searchParams.get('listingId') ?? '';
   const retryBid = searchParams.get('bid') ?? '';
@@ -46,7 +46,8 @@ export default function DealPage() {
   });
 
   // Derive terminal state inline to avoid the useEffect race
-  const terminalState = status?.state === 'agreement' || status?.state === 'fail' || status?.state === 'settled';
+  const terminalState =
+    status?.state === 'agreement' || status?.state === 'fail' || status?.state === 'settled';
   if (terminalState && !isTerminal) {
     setIsTerminal(true);
   }
@@ -132,7 +133,9 @@ export default function DealPage() {
   if (meetupComplete) {
     return (
       <div className="flex flex-col items-center justify-center gap-6 py-16 text-center">
-        <p className="text-5xl" aria-hidden="true">🎊</p>
+        <p className="text-5xl" aria-hidden="true">
+          🎊
+        </p>
         <div>
           <h1 className="text-2xl font-bold">거래 완료!</h1>
           <p className="text-muted-foreground mt-1">Karma +1 적립</p>
@@ -148,9 +151,7 @@ export default function DealPage() {
     <div className="space-y-6 pb-8">
       <div>
         <h1 className="text-2xl font-bold">협상 상태</h1>
-        <p className="text-xs text-muted-foreground font-mono mt-0.5">
-          {dealId.slice(0, 18)}...
-        </p>
+        <p className="text-xs text-muted-foreground font-mono mt-0.5">{dealId.slice(0, 18)}...</p>
       </div>
 
       {/* Main status card */}
@@ -186,11 +187,7 @@ export default function DealPage() {
                 </Button>
               </div>
             ) : (
-              <MeetupQR
-                dealId={dealId}
-                signature={myQrSignature}
-                onScan={handleOtherQRScanned}
-              />
+              <MeetupQR dealId={dealId} signature={myQrSignature} onScan={handleOtherQRScanned} />
             )}
           </CardContent>
         </Card>
@@ -201,8 +198,8 @@ export default function DealPage() {
         <div className="rounded-md border border-destructive/30 p-4 space-y-2">
           <p className="text-sm font-medium text-destructive">노쇼 신고</p>
           <p className="text-xs text-muted-foreground">
-            24시간 내 만남 인증이 없으면 노쇼로 신고할 수 있습니다.
-            신고 시 상대방 Karma가 하락하고 에스크로가 환불됩니다.
+            24시간 내 만남 인증이 없으면 노쇼로 신고할 수 있습니다. 신고 시 상대방 Karma가 하락하고
+            에스크로가 환불됩니다.
           </p>
           <Button
             variant="destructive"

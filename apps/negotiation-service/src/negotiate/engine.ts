@@ -1,13 +1,22 @@
 // Negotiation engine — orchestrates PLAN_V2 §2.2 steps A→J.
 // Pure async function; no side effects except DB writes + disk writes.
 
-import { toBytes } from 'viem';
-import { keccak256 } from 'viem';
+import type {
+  AgreedConditions,
+  DealId,
+  FailureReason,
+  KarmaTier,
+  ListingId,
+  NearAiAttestation,
+  NearAiAttestationBundle,
+  OfferId,
+} from '@bargo/shared';
 // @ts-ignore — canonicalize has no bundled types
 import canonicalize from 'canonicalize';
-import type { DealId, ListingId, OfferId, KarmaTier, NearAiAttestation, NearAiAttestationBundle, AgreedConditions, FailureReason } from '@bargo/shared';
-import { parseConditionsPair, LLMTimeoutError } from '../nearai/client.js';
+import { toBytes } from 'viem';
+import { keccak256 } from 'viem';
 import { fetchAttestation, saveAttestationBundle } from '../nearai/attestation.js';
+import { LLMTimeoutError, parseConditionsPair } from '../nearai/client.js';
 import { matchConditions } from './conditions.js';
 import { computeAgreedPrice } from './karmaWeight.js';
 
@@ -16,9 +25,9 @@ export interface RunNegotiationOpts {
   listingId: ListingId;
   offerId: OfferId;
   listingTitle: string;
-  sellerPlaintextMin: string;          // wei decimal
+  sellerPlaintextMin: string; // wei decimal
   sellerPlaintextConditions: string;
-  buyerPlaintextMax: string;           // wei decimal
+  buyerPlaintextMax: string; // wei decimal
   buyerPlaintextConditions: string;
   sellerKarmaTier: KarmaTier;
   buyerKarmaTier: KarmaTier;
@@ -111,11 +120,7 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
   const agreedConditionsHash = keccak256(toBytes(canonicalConditions)) as `0x${string}`;
 
   // H. Persist attestation bundle to disk
-  const attestationBundlePath = saveAttestationBundle(
-    opts.attestationDir,
-    opts.dealId,
-    bundle,
-  );
+  const attestationBundlePath = saveAttestationBundle(opts.attestationDir, opts.dealId, bundle);
 
   // I. Build NearAiAttestation — include agreedConditionsHash as a distinct field
   const attestation: NearAiAttestation = {

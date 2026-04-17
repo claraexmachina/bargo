@@ -1,7 +1,7 @@
 'use client';
 
 import { hoodiChain } from '@bargo/shared';
-import { createConfig, http } from 'wagmi';
+import { http, createConfig } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 
 // Status Network Hoodi testnet RPC
@@ -12,7 +12,7 @@ export const wagmiConfig = createConfig({
   connectors: [injected()],
   transports: {
     [hoodiChain.id]: http(
-      process.env.NEXT_PUBLIC_RPC_URL ?? 'https://public.hoodi.rpc.status.network'
+      process.env.NEXT_PUBLIC_RPC_URL ?? 'https://public.hoodi.rpc.status.network',
     ),
   },
 });

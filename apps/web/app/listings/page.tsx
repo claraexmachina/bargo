@@ -1,9 +1,9 @@
+import { ListingCard } from '@/components/ListingCard';
+import { Button } from '@/components/ui/button';
+import type { ListingPublic } from '@bargo/shared';
 // Listings page — RSC. Fetches open listings from the negotiation service.
 // Falls back to a local demo fixture if the service is unreachable (dev without backend).
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { ListingCard } from '@/components/ListingCard';
-import type { ListingPublic } from '@bargo/shared';
 
 async function fetchListings(): Promise<ListingPublic[]> {
   // NEXT_PUBLIC_NEGOTIATION_SERVICE_URL is the single env var used across the app.
@@ -87,7 +87,9 @@ export default async function ListingsPage() {
 
       {listings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-          <p className="text-4xl" aria-hidden="true">📦</p>
+          <p className="text-4xl" aria-hidden="true">
+            📦
+          </p>
           <p className="text-muted-foreground">아직 등록된 매물이 없습니다.</p>
           <Button asChild>
             <Link href="/listings/new">첫 매물 등록하기</Link>

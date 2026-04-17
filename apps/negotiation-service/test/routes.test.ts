@@ -1,15 +1,15 @@
 // Routes integration tests — uses Fastify's .inject() (no real HTTP).
 // runNegotiation (engine) and chain reads are stubbed via vi.mock.
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import Fastify from 'fastify';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { KarmaTier } from '@bargo/shared';
 import cors from '@fastify/cors';
 import Database from 'better-sqlite3';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import Fastify from 'fastify';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerRoutes } from '../src/routes/index.js';
-import type { KarmaTier } from '@bargo/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -18,30 +18,34 @@ vi.mock('../src/negotiate/engine.js', () => ({
   runNegotiation: vi.fn().mockResolvedValue({
     kind: 'agreement',
     attestation: {
-      dealId: '0x' + '00'.repeat(32),
-      listingId: '0x' + '01'.repeat(32),
-      offerId: '0x' + '02'.repeat(32),
+      dealId: `0x${'00'.repeat(32)}`,
+      listingId: `0x${'01'.repeat(32)}`,
+      offerId: `0x${'02'.repeat(32)}`,
       agreedPrice: '750000',
-      agreedConditions: { location: 'gangnam', meetTimeIso: '2026-04-20T19:00:00+09:00', payment: 'cash' },
-      agreedConditionsHash: '0x' + 'dd'.repeat(32),  // distinct from nearAiAttestationHash
+      agreedConditions: {
+        location: 'gangnam',
+        meetTimeIso: '2026-04-20T19:00:00+09:00',
+        payment: 'cash',
+      },
+      agreedConditionsHash: `0x${'dd'.repeat(32)}`, // distinct from nearAiAttestationHash
       modelId: 'qwen3-30b',
       completionId: 'chatcmpl-test',
-      nonce: '0x' + 'aa'.repeat(32),
-      nearAiAttestationHash: '0x' + 'bb'.repeat(32),
-      attestationBundleUrl: '/attestation/0x' + '00'.repeat(32),
+      nonce: `0x${'aa'.repeat(32)}`,
+      nearAiAttestationHash: `0x${'bb'.repeat(32)}`,
+      attestationBundleUrl: `/attestation/0x${'00'.repeat(32)}`,
       ts: 1_700_000_000,
     },
     bundle: {
-      quote: '0x' + 'cc'.repeat(4),
-      gpu_evidence: '0x' + 'dd'.repeat(4),
-      signing_key: '0x' + 'ee'.repeat(4),
+      quote: `0x${'cc'.repeat(4)}`,
+      gpu_evidence: `0x${'dd'.repeat(4)}`,
+      signing_key: `0x${'ee'.repeat(4)}`,
       signed_response: {
         model: 'qwen3-30b',
-        nonce: '0x' + 'aa'.repeat(32),
+        nonce: `0x${'aa'.repeat(32)}`,
         completion_id: 'chatcmpl-test',
         timestamp: 1_700_000_000,
       },
-      signature: '0x' + 'ff'.repeat(4),
+      signature: `0x${'ff'.repeat(4)}`,
     },
     attestationBundlePath: '/tmp/test-attestations/0x0000.json',
   }),
@@ -49,7 +53,7 @@ vi.mock('../src/negotiate/engine.js', () => ({
 
 // --- Mock relayer ---
 vi.mock('../src/chain/relayer.js', () => ({
-  submitSettlement: vi.fn().mockResolvedValue('0x' + 'ab'.repeat(32)),
+  submitSettlement: vi.fn().mockResolvedValue(`0x${'ab'.repeat(32)}`),
 }));
 
 // --- Mock attestation save ---
@@ -65,8 +69,12 @@ vi.mock('../src/nearai/attestation.js', () => ({
 
 // --- Mock on-chain ID verification ---
 vi.mock('../src/chain/verifyIds.js', () => ({
-  verifyListingOnChain: vi.fn().mockResolvedValue({ seller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' }),
-  verifyOfferOnChain: vi.fn().mockResolvedValue({ buyer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' }),
+  verifyListingOnChain: vi
+    .fn()
+    .mockResolvedValue({ seller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' }),
+  verifyOfferOnChain: vi
+    .fn()
+    .mockResolvedValue({ buyer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' }),
 }));
 
 // --- Helpers ---
@@ -97,7 +105,11 @@ function makeChainDeps(overrides?: {
         if (functionName === 'activeNegotiations') return Promise.resolve(BigInt(active));
         return Promise.resolve(null);
       }),
-    } as unknown as import('../src/chain/read.js').createChainClient extends (...args: infer _) => infer R ? R : never,
+    } as unknown as import('../src/chain/read.js').createChainClient extends (
+      ...args: infer _
+    ) => infer R
+      ? R
+      : never,
     karmaReaderAddress: '0x0000000000000000000000000000000000000001' as const,
     bargoEscrowAddress: '0x0000000000000000000000000000000000000002' as const,
     rpcUrl: 'http://localhost:8545',
@@ -130,9 +142,9 @@ async function buildApp(
   return app;
 }
 
-const LISTING_ID = ('0x' + 'a1'.repeat(32)) as const;
-const OFFER_ID = ('0x' + 'b2'.repeat(32)) as const;
-const ONCHAIN_TX_HASH = ('0x' + 'c3'.repeat(32)) as const;
+const LISTING_ID = `0x${'a1'.repeat(32)}` as const;
+const OFFER_ID = `0x${'b2'.repeat(32)}` as const;
+const ONCHAIN_TX_HASH = `0x${'c3'.repeat(32)}` as const;
 
 function makeValidListing(overrides?: { listingId?: string }) {
   return {
@@ -140,7 +152,12 @@ function makeValidListing(overrides?: { listingId?: string }) {
     seller: SELLER,
     askPrice: '1000000',
     requiredKarmaTier: 0,
-    itemMeta: { title: 'MacBook M1', description: 'Good condition', category: 'electronics', images: [] },
+    itemMeta: {
+      title: 'MacBook M1',
+      description: 'Good condition',
+      category: 'electronics',
+      images: [],
+    },
     plaintextMinSell: '800000',
     plaintextSellerConditions: '강남, 주말 오후',
     onchainTxHash: ONCHAIN_TX_HASH,
@@ -157,10 +174,10 @@ function makeValidOffer(listingId: string, nullifier?: string, offerId?: string)
     plaintextBuyerConditions: 'gangnam, weekends',
     rlnProof: {
       epoch: 1,
-      proof: '0x' + 'aa'.repeat(32),
-      nullifier: nullifier ?? ('0x' + '11'.repeat(32)),
-      signalHash: '0x' + '22'.repeat(32),
-      rlnIdentityCommitment: '0x' + '33'.repeat(32),
+      proof: `0x${'aa'.repeat(32)}`,
+      nullifier: nullifier ?? `0x${'11'.repeat(32)}`,
+      signalHash: `0x${'22'.repeat(32)}`,
+      rlnIdentityCommitment: `0x${'33'.repeat(32)}`,
     },
     onchainTxHash: ONCHAIN_TX_HASH,
   };
@@ -171,8 +188,12 @@ function makeValidOffer(listingId: string, nullifier?: string, offerId?: string)
 describe('POST /listing', () => {
   let db: Database.Database;
 
-  beforeEach(() => { db = buildDb(); });
-  afterEach(() => { db.close(); });
+  beforeEach(() => {
+    db = buildDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
 
   it('happy path → 201 with listingId, row in DB', async () => {
     const app = await buildApp(db);
@@ -189,9 +210,9 @@ describe('POST /listing', () => {
     expect(body.onchainTxHash).toBe(ONCHAIN_TX_HASH);
 
     // Verify DB row exists
-    const row = db.prepare('SELECT * FROM listings WHERE id = ?').get(
-      Buffer.from(body.listingId.slice(2), 'hex'),
-    );
+    const row = db
+      .prepare('SELECT * FROM listings WHERE id = ?')
+      .get(Buffer.from(body.listingId.slice(2), 'hex'));
     expect(row).toBeTruthy();
   });
 
@@ -240,7 +261,9 @@ describe('POST /offer', () => {
     });
   });
 
-  afterEach(() => { db.close(); });
+  afterEach(() => {
+    db.close();
+  });
 
   it('happy path → 202, negotiation queued', async () => {
     const app = await buildApp(db);
@@ -259,10 +282,14 @@ describe('POST /offer', () => {
 
   it('duplicate nullifier → 403 rln-rejected', async () => {
     const app = await buildApp(db);
-    const nullifier = '0x' + 'ff'.repeat(32);
+    const nullifier = `0x${'ff'.repeat(32)}`;
 
-    await app.inject({ method: 'POST', url: '/offer', payload: makeValidOffer(listingId, nullifier) });
-    db.exec(`UPDATE rln_nullifiers SET count = 3 WHERE epoch = 1`);
+    await app.inject({
+      method: 'POST',
+      url: '/offer',
+      payload: makeValidOffer(listingId, nullifier),
+    });
+    db.exec('UPDATE rln_nullifiers SET count = 3 WHERE epoch = 1');
 
     const res = await app.inject({
       method: 'POST',
@@ -319,12 +346,16 @@ describe('POST /offer', () => {
 describe('GET /status/:negotiationId', () => {
   let db: Database.Database;
 
-  beforeEach(() => { db = buildDb(); });
-  afterEach(() => { db.close(); });
+  beforeEach(() => {
+    db = buildDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
 
   it('unknown negotiationId → 404', async () => {
     const app = await buildApp(db);
-    const fakeId = '0x' + 'ab'.repeat(32);
+    const fakeId = `0x${'ab'.repeat(32)}`;
 
     const res = await app.inject({
       method: 'GET',
@@ -351,12 +382,16 @@ describe('GET /status/:negotiationId', () => {
 describe('GET /attestation/:dealId', () => {
   let db: Database.Database;
 
-  beforeEach(() => { db = buildDb(); });
-  afterEach(() => { db.close(); });
+  beforeEach(() => {
+    db = buildDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
 
   it('no bundle on disk → 404', async () => {
     const app = await buildApp(db);
-    const fakeId = '0x' + 'cd'.repeat(32);
+    const fakeId = `0x${'cd'.repeat(32)}`;
 
     const res = await app.inject({
       method: 'GET',

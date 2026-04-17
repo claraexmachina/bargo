@@ -1,9 +1,7 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
-const hexPrivKey = z
-  .string()
-  .regex(/^0x[0-9a-fA-F]{64}$/, 'must be 0x-prefixed 32-byte hex');
+const hexPrivKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'must be 0x-prefixed 32-byte hex');
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
@@ -50,7 +48,7 @@ const env = parsed.data;
 if (!env.NEAR_AI_API_KEY) {
   console.warn(
     '[config] NEAR_AI_API_KEY is not set — attestation calls will fail. ' +
-    'Get a key from https://near.ai/console and add NEAR_AI_API_KEY=<key> to .env.local',
+      'Get a key from https://near.ai/console and add NEAR_AI_API_KEY=<key> to .env.local',
   );
 }
 

@@ -1,19 +1,19 @@
 'use client';
 
-import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useAccount, useReadContract } from 'wagmi';
-import Link from 'next/link';
-import type { ListingId, KarmaTier, Address } from '@bargo/shared';
-import { karmaReaderAbi, ADDRESSES } from '@bargo/shared';
-import { useListing } from '@/lib/api';
 import { KarmaBadge } from '@/components/KarmaBadge';
 import { UserKarma } from '@/components/UserKarma';
+import { WalletConnect } from '@/components/WalletConnect';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { WalletConnect } from '@/components/WalletConnect';
+import { useListing } from '@/lib/api';
 import { formatKRW } from '@/lib/format';
+import type { Address, KarmaTier, ListingId } from '@bargo/shared';
+import { ADDRESSES, karmaReaderAbi } from '@bargo/shared';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import * as React from 'react';
+import { useAccount, useReadContract } from 'wagmi';
 
 const REQUIRED_TIER_LABEL: Record<KarmaTier, string> = {
   0: '누구나 오퍼 가능',
@@ -29,13 +29,12 @@ const DEMO_TIER_MAP: Record<string, KarmaTier> = {
   '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc': 0,
 };
 
-const KARMA_READER_ADDRESS = (ADDRESSES[374] as { karmaReader?: Address } | undefined)
-  ?.karmaReader;
+const KARMA_READER_ADDRESS = (ADDRESSES[374] as { karmaReader?: Address } | undefined)?.karmaReader;
 
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const listingId = params['id'] as ListingId;
+  const listingId = params.id as ListingId;
   const { address } = useAccount();
 
   const { data: listing, isLoading, error } = useListing(listingId);
@@ -51,7 +50,7 @@ export default function ListingDetailPage() {
   const myTier: KarmaTier =
     contractBuyerTier !== undefined
       ? (Number(contractBuyerTier) as KarmaTier)
-      : DEMO_TIER_MAP[address?.toLowerCase() ?? ''] ?? 0;
+      : (DEMO_TIER_MAP[address?.toLowerCase() ?? ''] ?? 0);
 
   if (isLoading) {
     return (
@@ -134,7 +133,10 @@ export default function ListingDetailPage() {
       </Card>
 
       {/* Bottom action bar */}
-      <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+      <div
+        className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3"
+        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
         <Button variant="outline" onClick={() => router.back()} className="flex-1">
           뒤로
         </Button>
@@ -157,15 +159,12 @@ export default function ListingDetailPage() {
               Tier {listing.requiredKarmaTier} 이상만 오퍼 가능
             </Button>
             <p className="text-xs text-center text-muted-foreground">
-              현재 Tier {myTier}입니다. Karma를 쌓아 Tier {listing.requiredKarmaTier}에 도달하면 오퍼할 수 있어요.
+              현재 Tier {myTier}입니다. Karma를 쌓아 Tier {listing.requiredKarmaTier}에 도달하면
+              오퍼할 수 있어요.
             </p>
           </div>
         ) : (
-          <Button
-            asChild
-            className="flex-1"
-            size="lg"
-          >
+          <Button asChild className="flex-1" size="lg">
             <Link href={`/offers/new/${listing.id}`}>오퍼하기 →</Link>
           </Button>
         )}

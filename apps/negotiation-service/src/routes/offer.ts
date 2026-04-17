@@ -6,24 +6,24 @@
 // dealId:   keccak256(abiEncodePacked(['bytes32','bytes32'], [listingId, offerId]))
 //           — matches BargoEscrow.settleNegotiation's dealId derivation
 
-import type { FastifyInstance } from 'fastify';
-import { keccak256, encodePacked } from 'viem';
-import { postOfferRequestSchema, THROUGHPUT_LIMITS } from '@bargo/shared';
-import type { KarmaTier, DealId, ListingId, OfferId } from '@bargo/shared';
-import {
-  insertOffer,
-  createNegotiation,
-  updateNegotiationState,
-  updateNegotiationAttestation,
-  getListingById,
-  bufferToHex,
-} from '../db/client.js';
-import { verifyRlnProof } from '../rln/verify.js';
-import { canOffer, getActiveNegotiations, getTier } from '../chain/read.js';
-import { verifyOfferOnChain } from '../chain/verifyIds.js';
-import { runNegotiation } from '../negotiate/engine.js';
-import { submitSettlement } from '../chain/relayer.js';
+import { THROUGHPUT_LIMITS, postOfferRequestSchema } from '@bargo/shared';
+import type { DealId, KarmaTier, ListingId, OfferId } from '@bargo/shared';
 import type Database from 'better-sqlite3';
+import type { FastifyInstance } from 'fastify';
+import { encodePacked, keccak256 } from 'viem';
+import { canOffer, getActiveNegotiations, getTier } from '../chain/read.js';
+import { submitSettlement } from '../chain/relayer.js';
+import { verifyOfferOnChain } from '../chain/verifyIds.js';
+import {
+  bufferToHex,
+  createNegotiation,
+  getListingById,
+  insertOffer,
+  updateNegotiationAttestation,
+  updateNegotiationState,
+} from '../db/client.js';
+import { runNegotiation } from '../negotiate/engine.js';
+import { verifyRlnProof } from '../rln/verify.js';
 import type { ChainDeps } from './index.js';
 import type { NearAiConfig } from './index.js';
 
@@ -46,7 +46,10 @@ export async function offerRoutes(
     const result = postOfferRequestSchema.safeParse(request.body);
     if (!result.success) {
       return reply.code(400).send({
-        error: { code: 'bad-request', message: result.error.issues[0]?.message ?? 'Invalid request body' },
+        error: {
+          code: 'bad-request',
+          message: result.error.issues[0]?.message ?? 'Invalid request body',
+        },
       });
     }
 
@@ -94,7 +97,10 @@ export async function offerRoutes(
     if (active >= limit) {
       app.log.warn({ buyer: body.buyer, active, limit }, 'throughput exceeded');
       return reply.code(409).send({
-        error: { code: 'throughput-exceeded', message: `Active negotiations limit reached (${limit} for tier ${buyerTier})` },
+        error: {
+          code: 'throughput-exceeded',
+          message: `Active negotiations limit reached (${limit} for tier ${buyerTier})`,
+        },
       });
     }
 
@@ -103,7 +109,10 @@ export async function offerRoutes(
     if (_inFlightNegotiations.has(inflightKey)) {
       app.log.warn({ buyer: body.buyer, listingId: body.listingId }, 'duplicate offer in-flight');
       return reply.code(409).send({
-        error: { code: 'negotiation-in-flight', message: 'A negotiation for this listing is already in progress' },
+        error: {
+          code: 'negotiation-in-flight',
+          message: 'A negotiation for this listing is already in progress',
+        },
       });
     }
 
@@ -117,7 +126,10 @@ export async function offerRoutes(
       if (code === 'onchain-offer-not-found') {
         app.log.warn({ offerId, buyer: body.buyer }, 'offerId not found on-chain');
         return reply.code(400).send({
-          error: { code: 'onchain-offer-not-found', message: 'Offer not found on-chain — submit the transaction first' },
+          error: {
+            code: 'onchain-offer-not-found',
+            message: 'Offer not found on-chain — submit the transaction first',
+          },
         });
       }
       throw err;
@@ -278,7 +290,10 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
       p.log.info({ negotiationId: p.negotiationId, txHash }, 'settlement submitted on-chain');
     } catch (relayerErr) {
       const message = relayerErr instanceof Error ? relayerErr.message : 'relayer error';
-      p.log.error({ negotiationId: p.negotiationId, err: message }, 'relayer submission failed — state stays agreement');
+      p.log.error(
+        { negotiationId: p.negotiationId, err: message },
+        'relayer submission failed — state stays agreement',
+      );
       // Keep state as 'agreement' — will be retried manually or by watcher
     }
   } catch (err) {

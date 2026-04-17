@@ -4,7 +4,7 @@
 // to be mined without on-chain gas cost. Falling back to paid gas is automatic
 // when the RLN prover is down (currently announced by the org).
 
-import type { Hex, Address } from 'viem';
+import type { Address, Hex } from 'viem';
 
 export interface LineaGas {
   gas: bigint;

@@ -1,13 +1,13 @@
 // RLN nullifier deduplication and epoch rate-limit tests
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { verifyRlnProof } from '../src/rln/verify.js';
+import { fileURLToPath } from 'node:url';
 import type { RLNProof } from '@bargo/shared';
 import { RLN_MAX_PER_EPOCH } from '@bargo/shared';
+import Database from 'better-sqlite3';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { verifyRlnProof } from '../src/rln/verify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,10 +23,10 @@ function buildDb(): Database.Database {
 function makeProof(overrides?: Partial<RLNProof>): RLNProof {
   return {
     epoch: 100,
-    proof: '0x' + 'aa'.repeat(32),
-    nullifier: '0x' + '11'.repeat(32),
-    signalHash: '0x' + '22'.repeat(32),
-    rlnIdentityCommitment: '0x' + '33'.repeat(32),
+    proof: `0x${'aa'.repeat(32)}`,
+    nullifier: `0x${'11'.repeat(32)}`,
+    signalHash: `0x${'22'.repeat(32)}`,
+    rlnIdentityCommitment: `0x${'33'.repeat(32)}`,
     ...overrides,
   };
 }
@@ -34,8 +34,12 @@ function makeProof(overrides?: Partial<RLNProof>): RLNProof {
 describe('verifyRlnProof', () => {
   let db: Database.Database;
 
-  beforeEach(() => { db = buildDb(); });
-  afterEach(() => { db.close(); });
+  beforeEach(() => {
+    db = buildDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
 
   it('first use → ok', () => {
     const result = verifyRlnProof(db, makeProof());
@@ -71,8 +75,8 @@ describe('verifyRlnProof', () => {
   });
 
   it('different nullifier, same epoch → independent limit', () => {
-    const nullifier1 = '0x' + '11'.repeat(32);
-    const nullifier2 = '0x' + '22'.repeat(32);
+    const nullifier1 = `0x${'11'.repeat(32)}`;
+    const nullifier2 = `0x${'22'.repeat(32)}`;
 
     // Max out nullifier1
     for (let i = 0; i < RLN_MAX_PER_EPOCH; i++) {
@@ -85,9 +89,12 @@ describe('verifyRlnProof', () => {
   });
 
   it('zero nullifier → invalid-proof', () => {
-    const result = verifyRlnProof(db, makeProof({
-      nullifier: '0x0000000000000000000000000000000000000000000000000000000000000000',
-    }));
+    const result = verifyRlnProof(
+      db,
+      makeProof({
+        nullifier: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      }),
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toBe('invalid-proof');

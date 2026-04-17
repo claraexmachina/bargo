@@ -1,8 +1,8 @@
 'use client';
 
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { truncateAddress } from '@/lib/format';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 
 export function WalletConnect() {
   const { address, isConnected } = useAccount();

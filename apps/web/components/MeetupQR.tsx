@@ -1,10 +1,10 @@
 'use client';
 
-import * as React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import type { DealId, Hex } from '@bargo/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { DealId, Hex } from '@bargo/shared';
+import { QRCodeSVG } from 'qrcode.react';
+import * as React from 'react';
 
 interface MeetupQRProps {
   dealId: DealId;
@@ -29,12 +29,7 @@ export function MeetupQR({ dealId, signature, onScan }: MeetupQRProps) {
       <div className="flex flex-col items-center gap-3">
         <p className="text-sm font-medium">내 QR 코드 (상대방이 스캔)</p>
         <div className="rounded-xl border-2 border-primary/30 p-3 bg-white">
-          <QRCodeSVG
-            value={qrPayload}
-            size={200}
-            level="M"
-            aria-label={`Deal ${dealId} QR code`}
-          />
+          <QRCodeSVG value={qrPayload} size={200} level="M" aria-label={`Deal ${dealId} QR code`} />
         </div>
         <p className="text-xs text-muted-foreground text-center">
           이 QR을 상대방 화면에 보여주세요
@@ -45,9 +40,7 @@ export function MeetupQR({ dealId, signature, onScan }: MeetupQRProps) {
       {onScan && (
         <div className="space-y-2">
           <p className="text-sm font-medium">상대방 QR 스캔</p>
-          <p className="text-xs text-muted-foreground">
-            데모: 상대방 QR의 내용을 직접 붙여넣기
-          </p>
+          <p className="text-xs text-muted-foreground">데모: 상대방 QR의 내용을 직접 붙여넣기</p>
           <div className="flex gap-2">
             <Input
               value={manualPayload}

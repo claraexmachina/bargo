@@ -1,9 +1,9 @@
 'use client';
 
+import { useAttestationBundle } from '@/lib/api';
+import type { DealId, NearAiAttestation } from '@bargo/shared';
 import * as React from 'react';
 import { toast } from 'sonner';
-import type { NearAiAttestation, DealId } from '@bargo/shared';
-import { useAttestationBundle } from '@/lib/api';
 
 interface AttestationViewerProps {
   attestation: NearAiAttestation | undefined;
@@ -20,11 +20,14 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     <button
       type="button"
       onClick={() => {
-        navigator.clipboard.writeText(value).then(() => {
-          toast.success('복사 완료');
-        }).catch(() => {
-          toast.error('복사 실패');
-        });
+        navigator.clipboard
+          .writeText(value)
+          .then(() => {
+            toast.success('복사 완료');
+          })
+          .catch(() => {
+            toast.error('복사 실패');
+          });
       }}
       className="ml-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
       aria-label={label}
@@ -74,11 +77,14 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
 
   function handleCopyVerifyScript() {
     const cmd = `node scripts/verify-attestation.mjs --dealId ${dealId}`;
-    navigator.clipboard.writeText(cmd).then(() => {
-      toast.success('복사 완료');
-    }).catch(() => {
-      toast.error('복사 실패');
-    });
+    navigator.clipboard
+      .writeText(cmd)
+      .then(() => {
+        toast.success('복사 완료');
+      })
+      .catch(() => {
+        toast.error('복사 실패');
+      });
   }
 
   return (
@@ -113,8 +119,7 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
           <span className="text-muted-foreground shrink-0">증명 해시</span>
           <span className="font-mono text-xs break-all">
             {truncateHex(nearAiAttestationHash)}
-            <CopyButton value={nearAiAttestationHash} label="증명 해시 복사" />
-            {' '}
+            <CopyButton value={nearAiAttestationHash} label="증명 해시 복사" />{' '}
             <a
               href={hoodiUrl}
               target="_blank"
@@ -151,8 +156,8 @@ export function AttestationViewer({ attestation, onchainTxHash }: AttestationVie
 
       {/* Explainer */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        이 거래는 NEAR AI의 Intel TDX + NVIDIA GPU TEE 안에서 처리되었습니다.
-        위 해시는 Hoodi 컨트랙트에 기록되어 있으며, 검증 스크립트로 누구나 TEE 무결성을 재확인할 수 있습니다.
+        이 거래는 NEAR AI의 Intel TDX + NVIDIA GPU TEE 안에서 처리되었습니다. 위 해시는 Hoodi
+        컨트랙트에 기록되어 있으며, 검증 스크립트로 누구나 TEE 무결성을 재확인할 수 있습니다.
       </p>
     </div>
   );

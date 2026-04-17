@@ -1,15 +1,12 @@
 // GET /status/:negotiationId
 // Returns current negotiation state, attestation (when agreement/settled), failureReason (when fail).
 
-import type { FastifyInstance } from 'fastify';
 import type { DealId, NearAiAttestation } from '@bargo/shared';
-import { getNegotiationById } from '../db/client.js';
 import type Database from 'better-sqlite3';
+import type { FastifyInstance } from 'fastify';
+import { getNegotiationById } from '../db/client.js';
 
-export async function statusRoutes(
-  app: FastifyInstance,
-  opts: { db: Database.Database },
-) {
+export async function statusRoutes(app: FastifyInstance, opts: { db: Database.Database }) {
   app.get<{ Params: { negotiationId: string } }>(
     '/status/:negotiationId',
     async (request, reply) => {
@@ -28,10 +25,9 @@ export async function statusRoutes(
         });
       }
 
-      const attestation: NearAiAttestation | undefined =
-        row.attestation_json
-          ? (JSON.parse(row.attestation_json) as NearAiAttestation)
-          : undefined;
+      const attestation: NearAiAttestation | undefined = row.attestation_json
+        ? (JSON.parse(row.attestation_json) as NearAiAttestation)
+        : undefined;
 
       const response: Record<string, unknown> = {
         negotiationId,

@@ -1,14 +1,14 @@
 // Watcher smoke test — mocks viem watchContractEvent, emits a fake FundsReleased log,
 // and asserts the negotiations row's plaintext columns are NULLed afterwards.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { startFundsReleasedWatcher } from '../src/chain/watcher.js';
-import { hexToBuffer, bufferToHex } from '../src/db/client.js';
+import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { createChainClient } from '../src/chain/read.js';
+import { startFundsReleasedWatcher } from '../src/chain/watcher.js';
+import { bufferToHex, hexToBuffer } from '../src/db/client.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -41,7 +41,7 @@ function seedNegotiation(
     INSERT INTO offers (id, listing_id, buyer, bid_price, plaintext_max_buy,
       plaintext_buyer_conditions, rln_nullifier, rln_epoch, status, created_at)
     VALUES (?, ?, '0xbuyer', '900', '950', 'buyer conds', ?, 1, 'pending', ?)
-  `).run(hexToBuffer(offerId), hexToBuffer(listingId), hexToBuffer('0x' + 'ee'.repeat(32)), now);
+  `).run(hexToBuffer(offerId), hexToBuffer(listingId), hexToBuffer(`0x${'ee'.repeat(32)}`), now);
 
   db.prepare(`
     INSERT INTO negotiations (id, listing_id, offer_id, state, created_at, updated_at)
@@ -59,14 +59,15 @@ describe('startFundsReleasedWatcher', () => {
   });
 
   it('sets negotiations state to completed and NULLs plaintext columns on FundsReleased', async () => {
-    const listingId = ('0x' + 'aa'.repeat(32)) as `0x${string}`;
-    const offerId = ('0x' + 'bb'.repeat(32)) as `0x${string}`;
-    const negotiationId = ('0x' + 'cc'.repeat(32)) as `0x${string}`;
+    const listingId = `0x${'aa'.repeat(32)}` as `0x${string}`;
+    const offerId = `0x${'bb'.repeat(32)}` as `0x${string}`;
+    const negotiationId = `0x${'cc'.repeat(32)}` as `0x${string}`;
 
     seedNegotiation(db, listingId, offerId, negotiationId);
 
     // Verify plaintext is present before watcher fires
-    const beforeListing = db.prepare('SELECT plaintext_min_sell FROM listings WHERE id = ?')
+    const beforeListing = db
+      .prepare('SELECT plaintext_min_sell FROM listings WHERE id = ?')
       .get(hexToBuffer(listingId)) as { plaintext_min_sell: string | null };
     expect(beforeListing.plaintext_min_sell).toBe('800');
 
@@ -74,11 +75,13 @@ describe('startFundsReleasedWatcher', () => {
     let capturedOnLogs: ((logs: unknown[]) => void) | undefined;
 
     const mockClient = {
-      watchContractEvent: vi.fn().mockImplementation((opts: { onLogs: (logs: unknown[]) => void }) => {
-        capturedOnLogs = opts.onLogs;
-        // Return a no-op unwatch
-        return () => {};
-      }),
+      watchContractEvent: vi
+        .fn()
+        .mockImplementation((opts: { onLogs: (logs: unknown[]) => void }) => {
+          capturedOnLogs = opts.onLogs;
+          // Return a no-op unwatch
+          return () => {};
+        }),
     } as unknown as ReturnType<typeof createChainClient>;
 
     const mockLog = {
@@ -99,7 +102,7 @@ describe('startFundsReleasedWatcher', () => {
     expect(capturedOnLogs).toBeDefined();
 
     // Emit a fake FundsReleased log
-    capturedOnLogs!([
+    capturedOnLogs?.([
       {
         args: {
           dealId: negotiationId,
@@ -110,18 +113,27 @@ describe('startFundsReleasedWatcher', () => {
     ]);
 
     // negotiation state should be 'completed'
-    const neg = db.prepare('SELECT state FROM negotiations WHERE id = ?')
+    const neg = db
+      .prepare('SELECT state FROM negotiations WHERE id = ?')
       .get(hexToBuffer(negotiationId)) as { state: string };
     expect(neg.state).toBe('completed');
 
     // Trigger should have NULLed plaintext columns on listing and offer
-    const listing = db.prepare('SELECT plaintext_min_sell, plaintext_seller_conditions FROM listings WHERE id = ?')
-      .get(hexToBuffer(listingId)) as { plaintext_min_sell: string | null; plaintext_seller_conditions: string | null };
+    const listing = db
+      .prepare('SELECT plaintext_min_sell, plaintext_seller_conditions FROM listings WHERE id = ?')
+      .get(hexToBuffer(listingId)) as {
+      plaintext_min_sell: string | null;
+      plaintext_seller_conditions: string | null;
+    };
     expect(listing.plaintext_min_sell).toBeNull();
     expect(listing.plaintext_seller_conditions).toBeNull();
 
-    const offer = db.prepare('SELECT plaintext_max_buy, plaintext_buyer_conditions FROM offers WHERE id = ?')
-      .get(hexToBuffer(offerId)) as { plaintext_max_buy: string | null; plaintext_buyer_conditions: string | null };
+    const offer = db
+      .prepare('SELECT plaintext_max_buy, plaintext_buyer_conditions FROM offers WHERE id = ?')
+      .get(hexToBuffer(offerId)) as {
+      plaintext_max_buy: string | null;
+      plaintext_buyer_conditions: string | null;
+    };
     expect(offer.plaintext_max_buy).toBeNull();
     expect(offer.plaintext_buyer_conditions).toBeNull();
   });
@@ -130,10 +142,12 @@ describe('startFundsReleasedWatcher', () => {
     let capturedOnLogs: ((logs: unknown[]) => void) | undefined;
 
     const mockClient = {
-      watchContractEvent: vi.fn().mockImplementation((opts: { onLogs: (logs: unknown[]) => void }) => {
-        capturedOnLogs = opts.onLogs;
-        return () => {};
-      }),
+      watchContractEvent: vi
+        .fn()
+        .mockImplementation((opts: { onLogs: (logs: unknown[]) => void }) => {
+          capturedOnLogs = opts.onLogs;
+          return () => {};
+        }),
     } as unknown as ReturnType<typeof createChainClient>;
 
     const mockLog = {
@@ -150,7 +164,7 @@ describe('startFundsReleasedWatcher', () => {
     );
 
     // Log with missing dealId — should not throw
-    capturedOnLogs!([{ args: {} }]);
+    capturedOnLogs?.([{ args: {} }]);
 
     expect(mockLog.warn).toHaveBeenCalledOnce();
   });

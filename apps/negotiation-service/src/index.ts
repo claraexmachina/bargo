@@ -1,14 +1,14 @@
 import 'dotenv/config';
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import { config } from './config.js';
-import { getDb, closeDb } from './db/client.js';
-import { createChainClient } from './chain/read.js';
-import { startFundsReleasedWatcher } from './chain/watcher.js';
-import { registerRoutes } from './routes/index.js';
-import { runStartupAttestationCheck } from './nearai/attestation.js';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import cors from '@fastify/cors';
+import Fastify from 'fastify';
+import { createChainClient } from './chain/read.js';
+import { startFundsReleasedWatcher } from './chain/watcher.js';
+import { config } from './config.js';
+import { closeDb, getDb } from './db/client.js';
+import { runStartupAttestationCheck } from './nearai/attestation.js';
+import { registerRoutes } from './routes/index.js';
 
 const app = Fastify({
   logger: {
@@ -99,7 +99,9 @@ async function bootstrap() {
       },
     });
   } else {
-    app.log.warn('NEAR_AI_STARTUP_CHECK is not set to "true" — skipping startup attestation check. Set NEAR_AI_STARTUP_CHECK=true to enable.');
+    app.log.warn(
+      'NEAR_AI_STARTUP_CHECK is not set to "true" — skipping startup attestation check. Set NEAR_AI_STARTUP_CHECK=true to enable.',
+    );
   }
 
   // Return cleanup handle for shutdown
