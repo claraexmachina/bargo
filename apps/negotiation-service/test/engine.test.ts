@@ -1,7 +1,7 @@
 // Engine unit tests — mocks parseConditionsPair and fetchAttestation.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ConditionStruct } from '@haggle/shared';
+import type { ConditionStruct } from '@bargo/shared';
 
 // --- Mocks ---
 

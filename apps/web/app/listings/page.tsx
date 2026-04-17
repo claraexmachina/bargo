@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ListingCard } from '@/components/ListingCard';
-import type { ListingPublic } from '@haggle/shared';
+import type { ListingPublic } from '@bargo/shared';
 
 async function fetchListings(): Promise<ListingPublic[]> {
   // NEXT_PUBLIC_NEGOTIATION_SERVICE_URL is the single env var used across the app.

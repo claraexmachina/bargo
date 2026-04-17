@@ -10,9 +10,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 // @ts-ignore — canonicalize has no bundled types; we assert the return type
 import canonicalize from 'canonicalize';
-import { nearAiAttestationBundleSchema } from '@haggle/shared';
-import type { NearAiAttestationBundle, DealId } from '@haggle/shared';
-import type { Hex } from '@haggle/shared';
+import { nearAiAttestationBundleSchema } from '@bargo/shared';
+import type { NearAiAttestationBundle, DealId } from '@bargo/shared';
+import type { Hex } from '@bargo/shared';
 
 export interface FetchAttestationOpts {
   model: string;

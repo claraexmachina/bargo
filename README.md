@@ -1,4 +1,4 @@
-# Haggle
+# Bargo
 
 > NEAR AI TEE × Status Network — P2P 중고거래 협상 자동화
 
@@ -28,7 +28,7 @@ Web (Next.js PWA) ──► Negotiation Service (Fastify + SQLite)
                               │
                     ┌─────────▼─────────────────────────┐
                     │  Status Network Hoodi              │
-                    │  HaggleEscrow, KarmaReader,        │
+                    │  BargoEscrow, KarmaReader,        │
                     │  RLNVerifier                       │
                     └────────────────────────────────────┘
 ```
@@ -65,7 +65,7 @@ RELAYER_PRIVATE_KEY=0x...
 ATTESTATION_RELAYER_ADDRESS=0x...    # derived from RELAYER_PRIVATE_KEY
 
 # Contracts (Hoodi chain 374)
-HAGGLE_ESCROW_ADDRESS=0x...
+BARGO_ESCROW_ADDRESS=0x...
 KARMA_READER_ADDRESS=0x...
 RLN_VERIFIER_ADDRESS=0x...
 

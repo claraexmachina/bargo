@@ -3,8 +3,8 @@
 
 import { createWalletClient, createPublicClient, http, publicActions } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { hoodiChain, haggleEscrowAbi } from '@haggle/shared';
-import type { Hex, DealId, ListingId, OfferId } from '@haggle/shared';
+import { hoodiChain, bargoEscrowAbi } from '@bargo/shared';
+import type { Hex, DealId, ListingId, OfferId } from '@bargo/shared';
 
 export interface SubmitSettlementOpts {
   dealId: DealId;
@@ -19,7 +19,7 @@ export interface SubmitSettlementOpts {
 }
 
 /**
- * Submit settleNegotiation to HaggleEscrow and wait for 1 confirmation.
+ * Submit settleNegotiation to BargoEscrow and wait for 1 confirmation.
  * Returns the on-chain transaction hash.
  * Throws on revert with a descriptive error message.
  */
@@ -39,7 +39,7 @@ export async function submitSettlement(opts: SubmitSettlementOpts): Promise<Hex>
   try {
     const simulateResult = await walletClient.simulateContract({
       address: opts.escrowAddress,
-      abi: haggleEscrowAbi,
+      abi: bargoEscrowAbi,
       functionName: 'settleNegotiation',
       args: [
         opts.listingId,

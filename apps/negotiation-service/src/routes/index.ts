@@ -2,7 +2,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type Database from 'better-sqlite3';
-import type { Address } from '@haggle/shared';
+import type { Address } from '@bargo/shared';
 import { listingRoutes } from './listing.js';
 import { offerRoutes } from './offer.js';
 import { statusRoutes } from './status.js';
@@ -13,7 +13,7 @@ import { createChainClient } from '../chain/read.js';
 export interface ChainDeps {
   client: ReturnType<typeof createChainClient>;
   karmaReaderAddress: Address;
-  haggleEscrowAddress: Address;
+  bargoEscrowAddress: Address;
   rpcUrl: string;
 }
 
@@ -31,7 +31,7 @@ export async function registerRoutes(
     chain: ChainDeps;
     nearAi: NearAiConfig;
     relayerPrivateKey: `0x${string}`;
-    haggleEscrowAddress: `0x${string}`;
+    bargoEscrowAddress: `0x${string}`;
     attestationDir: string;
   },
 ): Promise<void> {
@@ -42,7 +42,7 @@ export async function registerRoutes(
       chain: opts.chain,
       nearAi: opts.nearAi,
       relayerPrivateKey: opts.relayerPrivateKey,
-      haggleEscrowAddress: opts.haggleEscrowAddress,
+      bargoEscrowAddress: opts.bargoEscrowAddress,
       attestationDir: opts.attestationDir,
     });
     await statusRoutes(sub, { db: opts.db });

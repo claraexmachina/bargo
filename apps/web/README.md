@@ -1,4 +1,4 @@
-# @haggle/web — Next.js PWA
+# @bargo/web — Next.js PWA
 
 ## Dev
 

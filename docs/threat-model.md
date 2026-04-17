@@ -1,4 +1,4 @@
-# Haggle V2 — Threat Model
+# Bargo V2 — Threat Model
 
 ## Why V2 is more honest than V1
 

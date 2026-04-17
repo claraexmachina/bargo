@@ -15,7 +15,7 @@ import type {
   PostListingResponse,
   PostOfferRequest,
   PostOfferResponse,
-} from '@haggle/shared';
+} from '@bargo/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const BASE_URL =

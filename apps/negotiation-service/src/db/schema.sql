@@ -1,4 +1,4 @@
--- Haggle Negotiation Service — SQLite schema (V2)
+-- Bargo Negotiation Service — SQLite schema (V2)
 -- WAL mode enabled in client.ts at startup.
 -- All IDs are stored as BLOB (bytes32 / UUID in binary).
 -- Timestamps are unix seconds (INTEGER).

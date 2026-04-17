@@ -1,6 +1,6 @@
 'use client';
 
-import type { KarmaTier, Address } from '@haggle/shared';
+import type { KarmaTier, Address } from '@bargo/shared';
 import { Badge } from '@/components/ui/badge';
 import { karmaTierName } from '@/lib/format';
 

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAccount, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
-import type { DealId, Hex } from '@haggle/shared';
+import type { DealId, Hex } from '@bargo/shared';
 import { useNegotiationStatus } from '@/lib/api';
 import { NegotiationStatus } from '@/components/NegotiationStatus';
 import { MeetupQR } from '@/components/MeetupQR';
@@ -55,7 +55,7 @@ export default function DealPage() {
   async function handleSignMeetupQR() {
     if (!address) return;
     try {
-      const msg = `Haggle meetup confirm: dealId=${dealId}`;
+      const msg = `Bargo meetup confirm: dealId=${dealId}`;
       const sig = await signMessageAsync({ message: msg });
       setMyQrSignature(sig);
       toast.success('QR 서명 완료. 상대방 QR을 스캔하세요.');

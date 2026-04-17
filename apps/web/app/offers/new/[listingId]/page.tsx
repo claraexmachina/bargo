@@ -5,8 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { parseEventLogs } from 'viem';
 import { toast } from 'sonner';
-import type { ListingId, Hex } from '@haggle/shared';
-import { haggleEscrowAbi, ADDRESSES } from '@haggle/shared';
+import type { ListingId, Hex } from '@bargo/shared';
+import { bargoEscrowAbi, ADDRESSES } from '@bargo/shared';
 import { WalletConnect } from '@/components/WalletConnect';
 import { UserKarma } from '@/components/UserKarma';
 import { ConditionInput } from '@/components/ConditionInput';
@@ -39,7 +39,7 @@ export default function NewOfferPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitStep, setSubmitStep] = React.useState<'idle' | 'onchain' | 'service'>('idle');
 
-  const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.haggleEscrow;
+  const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.bargoEscrow;
 
   const canSubmit =
     isConnected &&
@@ -83,7 +83,7 @@ export default function NewOfferPage() {
       const rlnProofBytes = rlnProof.proof as Hex;
       const txHash = await writeContractAsync({
         address: escrowAddress,
-        abi: haggleEscrowAbi,
+        abi: bargoEscrowAbi,
         functionName: 'submitOffer',
         args: [listingId, bidPriceBigInt, rlnProofBytes],
       });
@@ -94,7 +94,7 @@ export default function NewOfferPage() {
       const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
 
       const logs = parseEventLogs({
-        abi: haggleEscrowAbi,
+        abi: bargoEscrowAbi,
         eventName: 'OfferSubmitted',
         logs: receipt.logs,
       });

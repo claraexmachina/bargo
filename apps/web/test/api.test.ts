@@ -1,5 +1,5 @@
 /**
- * Type-level test: plaintext DTOs compile correctly with @haggle/shared types.
+ * Type-level test: plaintext DTOs compile correctly with @bargo/shared types.
  * These tests verify that the V2 API shapes are used consistently.
  */
 import { describe, it, expect } from 'vitest';
@@ -10,7 +10,7 @@ import type {
   NearAiAttestation,
   RLNProof,
   Hex,
-} from '@haggle/shared';
+} from '@bargo/shared';
 
 function hex(s: string): Hex {
   return `0x${s}` as Hex;

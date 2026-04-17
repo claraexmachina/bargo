@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {IKarmaReader} from "./interfaces/IKarmaReader.sol";
 import {IRLNVerifier} from "./interfaces/IRLNVerifier.sol";
 
-/// @title HaggleEscrow
-/// @notice Escrow + negotiation settlement for Haggle P2P marketplace.
+/// @title BargoEscrow
+/// @notice Escrow + negotiation settlement for Bargo P2P marketplace.
 ///         Enforces Karma tier gating, RLN rate-limiting, and NEAR AI attestation hash recording.
-contract HaggleEscrow {
+contract BargoEscrow {
     // ─── constants ───
 
     uint256 public constant SETTLEMENT_WINDOW = 86_400; // 24 hours

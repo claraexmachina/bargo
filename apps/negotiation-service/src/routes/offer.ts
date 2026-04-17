@@ -4,12 +4,12 @@
 //
 // offerId:  provided by caller (on-chain id from buyer's submitOffer tx)
 // dealId:   keccak256(abiEncodePacked(['bytes32','bytes32'], [listingId, offerId]))
-//           — matches HaggleEscrow.settleNegotiation's dealId derivation
+//           — matches BargoEscrow.settleNegotiation's dealId derivation
 
 import type { FastifyInstance } from 'fastify';
 import { keccak256, encodePacked } from 'viem';
-import { postOfferRequestSchema, THROUGHPUT_LIMITS } from '@haggle/shared';
-import type { KarmaTier, DealId, ListingId, OfferId } from '@haggle/shared';
+import { postOfferRequestSchema, THROUGHPUT_LIMITS } from '@bargo/shared';
+import type { KarmaTier, DealId, ListingId, OfferId } from '@bargo/shared';
 import {
   insertOffer,
   createNegotiation,
@@ -38,7 +38,7 @@ export async function offerRoutes(
     chain: ChainDeps;
     nearAi: NearAiConfig;
     relayerPrivateKey: `0x${string}`;
-    haggleEscrowAddress: `0x${string}`;
+    bargoEscrowAddress: `0x${string}`;
     attestationDir: string;
   },
 ) {
@@ -88,7 +88,7 @@ export async function offerRoutes(
     const limit = THROUGHPUT_LIMITS[buyerTier] ?? THROUGHPUT_LIMITS[0];
     const active = await getActiveNegotiations(
       opts.chain.client,
-      opts.chain.haggleEscrowAddress,
+      opts.chain.bargoEscrowAddress,
       body.buyer,
     );
     if (active >= limit) {
@@ -111,7 +111,7 @@ export async function offerRoutes(
     //    offerId comes from buyer's on-chain submitOffer tx; service trusts the chain, not its own counter.
     const offerId = body.offerId as OfferId;
     try {
-      await verifyOfferOnChain(opts.chain.client, opts.chain.haggleEscrowAddress, offerId);
+      await verifyOfferOnChain(opts.chain.client, opts.chain.bargoEscrowAddress, offerId);
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'onchain-offer-not-found') {
@@ -175,7 +175,7 @@ export async function offerRoutes(
       nearAiTimeoutMs: opts.nearAi.timeoutMs,
       attestationDir: opts.attestationDir,
       relayerPrivateKey: opts.relayerPrivateKey,
-      haggleEscrowAddress: opts.haggleEscrowAddress,
+      bargoEscrowAddress: opts.bargoEscrowAddress,
       hoodiRpcUrl: opts.chain.rpcUrl,
       log: app.log,
       inflightKey,
@@ -207,7 +207,7 @@ interface FireNegotiationParams {
   nearAiTimeoutMs: number;
   attestationDir: string;
   relayerPrivateKey: `0x${string}`;
-  haggleEscrowAddress: `0x${string}`;
+  bargoEscrowAddress: `0x${string}`;
   hoodiRpcUrl: string;
   log: FastifyInstance['log'];
   inflightKey: string;
@@ -268,7 +268,7 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
         nearAiAttestationHash: attestation.nearAiAttestationHash,
         relayerPrivateKey: p.relayerPrivateKey,
         rpcUrl: p.hoodiRpcUrl,
-        escrowAddress: p.haggleEscrowAddress,
+        escrowAddress: p.bargoEscrowAddress,
       });
 
       updateNegotiationState(p.db, p.negotiationId, 'settled', {

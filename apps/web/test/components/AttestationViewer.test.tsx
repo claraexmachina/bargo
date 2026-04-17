@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AttestationViewer } from '../../components/AttestationViewer';
-import type { NearAiAttestation, Hex } from '@haggle/shared';
+import type { NearAiAttestation, Hex } from '@bargo/shared';
 
 // Mock useAttestationBundle so we can control its return value per test
 type BundleResult = { data: unknown; isLoading: boolean; error: Error | null };

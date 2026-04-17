@@ -65,12 +65,12 @@ async function bootstrap() {
     chain: {
       client: chainClient,
       karmaReaderAddress: config.karmaReaderAddress,
-      haggleEscrowAddress: config.haggleEscrowAddress,
+      bargoEscrowAddress: config.bargoEscrowAddress,
       rpcUrl: config.hoodiRpcUrl,
     },
     nearAi: config.nearAi,
     relayerPrivateKey: config.relayerPrivateKey,
-    haggleEscrowAddress: config.haggleEscrowAddress,
+    bargoEscrowAddress: config.bargoEscrowAddress,
     attestationDir: config.attestationDir,
   });
 
@@ -80,7 +80,7 @@ async function bootstrap() {
   // BLOCKER A2: Start FundsReleased watcher so auto-purge trigger fires on deal completion.
   const unwatchFundsReleased = startFundsReleasedWatcher(
     chainClient,
-    config.haggleEscrowAddress,
+    config.bargoEscrowAddress,
     db,
     app.log,
   );

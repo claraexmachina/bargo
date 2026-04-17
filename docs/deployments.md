@@ -1,4 +1,4 @@
-# Haggle Contract Deployments
+# Bargo Contract Deployments
 
 ## Hoodi Testnet (chainId 374) — OBSOLETE (V1 — self-TEE)
 
@@ -24,7 +24,7 @@ If `ATTESTATION_RELAYER_ADDRESS` is compromised (threat model #7):
 
 ```bash
 # Only the contract owner can rotate the relayer
-cast send $HAGGLE_ESCROW_ADDRESS \
+cast send $BARGO_ESCROW_ADDRESS \
   "setAttestationRelayer(address)" \
   $NEW_RELAYER_ADDRESS \
   --rpc-url $HOODI_RPC_URL \
@@ -62,7 +62,7 @@ Expected output:
 ```
 RLNVerifier:       0x...
 KarmaReader:       0x...
-HaggleEscrow:      0x...
+BargoEscrow:      0x...
 attestationRelayer: 0x...
 ```
 
@@ -86,7 +86,7 @@ Edit `packages/shared/src/addresses.ts`:
 ```ts
 export const ADDRESSES = {
   374: {
-    haggleEscrow: "0x<HaggleEscrow>",
+    bargoEscrow: "0x<BargoEscrow>",
     karmaReader:  "0x<KarmaReader>",
     rlnVerifier:  "0x<RLNVerifier>",
   },
@@ -103,7 +103,7 @@ Then update this file with the actual addresses below.
 |--------------|--------------------------------------|--------|
 | RLNVerifier  | <TBD — deploy via forge script>      | TBD    |
 | KarmaReader  | <TBD — deploy via forge script>      | TBD    |
-| HaggleEscrow | <TBD — deploy via forge script>      | TBD    |
+| BargoEscrow | <TBD — deploy via forge script>      | TBD    |
 
 ---
 
@@ -111,6 +111,6 @@ Then update this file with the actual addresses below.
 
 One deviation from PLAN §3.4:
 
-- **`IKarmaReader.canOfferOn(address, bytes32)` → `canOffer(address, uint8)`**: The PLAN interface called `canOfferOn(who, listingId)` which required `HaggleEscrow.getListing()` from within `KarmaReader`, creating a circular dependency (KarmaReader → HaggleEscrow → KarmaReader). Changed to accept `requiredTier uint8` directly — HaggleEscrow reads the listing's `requiredKarmaTier` and passes it. This is strictly simpler and avoids a cross-contract read. PR note: if the service-lead or frontend-lead has already hardcoded `canOfferOn(addr, listingId)` calls, they need to switch to `canOffer(addr, tier)`.
+- **`IKarmaReader.canOfferOn(address, bytes32)` → `canOffer(address, uint8)`**: The PLAN interface called `canOfferOn(who, listingId)` which required `BargoEscrow.getListing()` from within `KarmaReader`, creating a circular dependency (KarmaReader → BargoEscrow → KarmaReader). Changed to accept `requiredTier uint8` directly — BargoEscrow reads the listing's `requiredKarmaTier` and passes it. This is strictly simpler and avoids a cross-contract read. PR note: if the service-lead or frontend-lead has already hardcoded `canOfferOn(addr, listingId)` calls, they need to switch to `canOffer(addr, tier)`.
 
 - **`settleNegotiation` removes `buyerAddress` parameter**: The PLAN §3.4 interface didn't include `buyerAddress` but the escrow needs it. Instead of adding it as a caller-supplied param (which could be spoofed), we derive it from `_offerBuyer[offerId]` set during `submitOffer`. Cleaner and tamper-proof.

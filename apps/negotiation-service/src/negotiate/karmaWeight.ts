@@ -1,5 +1,5 @@
 // Karma-weighted price split within ZOPA.
-// Ported from services/tee/haggle_tee/karma_weight.py (Python → TypeScript).
+// Ported from services/tee/bargo_tee/karma_weight.py (Python → TypeScript).
 //
 // Per PRD §2.4 US-5 and §2.8:
 //   weight = 0.5 + 0.05 * (seller_tier - buyer_tier)
@@ -10,7 +10,7 @@
 //
 // agreedPrice = floor(sellerMin + (buyerMax - sellerMin) * weight)
 
-import type { KarmaTier } from '@haggle/shared';
+import type { KarmaTier } from '@bargo/shared';
 
 /**
  * Compute seller-favourable weight in [0.35, 0.65].

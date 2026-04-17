@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {HaggleEscrow} from "../src/HaggleEscrow.sol";
+import {BargoEscrow} from "../src/BargoEscrow.sol";
 import {KarmaReader} from "../src/KarmaReader.sol";
 import {RLNVerifier} from "../src/RLNVerifier.sol";
 import {IRLNVerifier} from "../src/interfaces/IRLNVerifier.sol";
 
-contract HaggleEscrowTest is Test {
-    HaggleEscrow private escrow;
+contract BargoEscrowTest is Test {
+    BargoEscrow private escrow;
     KarmaReader private karma;
     RLNVerifier private rln;
 
@@ -24,7 +24,7 @@ contract HaggleEscrowTest is Test {
     uint256 private constant BID_PRICE = 0.9 ether;
     uint256 private constant AGREED_PRICE = 0.95 ether;
 
-    // High value threshold: 500_000 ether (from HaggleEscrow constant)
+    // High value threshold: 500_000 ether (from BargoEscrow constant)
     uint256 private constant HIGH_VALUE = 500_001 ether;
 
     // Attestation / conditions hashes
@@ -34,7 +34,7 @@ contract HaggleEscrowTest is Test {
     function setUp() public {
         karma = new KarmaReader();
         rln = new RLNVerifier();
-        escrow = new HaggleEscrow(address(karma), address(rln), relayer);
+        escrow = new BargoEscrow(address(karma), address(rln), relayer);
 
         // Seed karma: seller=3, buyer=0 by default
         karma.setTier(seller, 3);
@@ -75,7 +75,7 @@ contract HaggleEscrowTest is Test {
     function test_happyPath() public {
         // 1. Register listing
         bytes32 listingId = _registerListing(0, ASK_PRICE);
-        HaggleEscrow.Listing memory listing = escrow.getListing(listingId);
+        BargoEscrow.Listing memory listing = escrow.getListing(listingId);
         assertTrue(listing.active);
         assertEq(listing.seller, seller);
 
@@ -85,8 +85,8 @@ contract HaggleEscrowTest is Test {
 
         // 3. Settle negotiation via relayer
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
-        HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.PENDING));
+        BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.PENDING));
         assertEq(deal.buyer, buyer);
         assertEq(deal.seller, seller);
         assertEq(deal.agreedConditionsHash, CONDITIONS_HASH);
@@ -97,7 +97,7 @@ contract HaggleEscrowTest is Test {
         vm.prank(buyer);
         escrow.lockEscrow{value: AGREED_PRICE}(dealId);
         deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.LOCKED));
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.LOCKED));
 
         // 5. Both confirm meetup → funds released to seller
         uint256 sellerBefore = seller.balance;
@@ -109,7 +109,7 @@ contract HaggleEscrowTest is Test {
         escrow.confirmMeetup(dealId);
 
         deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.COMPLETED));
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.COMPLETED));
         assertEq(seller.balance, sellerBefore + AGREED_PRICE);
     }
 
@@ -120,7 +120,7 @@ contract HaggleEscrowTest is Test {
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         vm.prank(eve);
-        vm.expectRevert(HaggleEscrow.NotRelayer.selector);
+        vm.expectRevert(BargoEscrow.NotRelayer.selector);
         escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
     }
 
@@ -129,7 +129,7 @@ contract HaggleEscrowTest is Test {
         bytes32 offerId = _submitOffer(buyer, listingId);
 
         vm.prank(relayer);
-        vm.expectRevert(HaggleEscrow.AttestationHashZero.selector);
+        vm.expectRevert(BargoEscrow.AttestationHashZero.selector);
         escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, bytes32(0));
     }
 
@@ -141,30 +141,30 @@ contract HaggleEscrowTest is Test {
 
         vm.prank(relayer);
         vm.expectEmit(true, true, true, true);
-        emit HaggleEscrow.NegotiationSettled(
+        emit BargoEscrow.NegotiationSettled(
             expectedDealId, listingId, ATTEST_HASH, offerId, AGREED_PRICE, CONDITIONS_HASH
         );
         bytes32 dealId = escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
 
         assertEq(dealId, expectedDealId);
 
-        HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
+        BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
         assertEq(deal.agreedConditionsHash, CONDITIONS_HASH);
         assertEq(deal.nearAiAttestationHash, ATTEST_HASH);
         assertEq(deal.agreedPrice, AGREED_PRICE);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.PENDING));
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.PENDING));
     }
 
     function test_setAttestationRelayer_onlyOwner() public {
         vm.prank(eve);
-        vm.expectRevert(HaggleEscrow.NotOwner.selector);
+        vm.expectRevert(BargoEscrow.NotOwner.selector);
         escrow.setAttestationRelayer(newRelayer);
     }
 
     function test_setAttestationRelayer_updates() public {
         // Owner updates relayer
         vm.expectEmit(true, true, false, false);
-        emit HaggleEscrow.AttestationRelayerUpdated(relayer, newRelayer);
+        emit BargoEscrow.AttestationRelayerUpdated(relayer, newRelayer);
         escrow.setAttestationRelayer(newRelayer);
 
         assertEq(escrow.attestationRelayer(), newRelayer);
@@ -186,12 +186,12 @@ contract HaggleEscrowTest is Test {
         bytes32 offerId2 = _submitOffer(buyer, listingId2);
 
         vm.prank(relayer);
-        vm.expectRevert(HaggleEscrow.NotRelayer.selector);
+        vm.expectRevert(BargoEscrow.NotRelayer.selector);
         escrow.settleNegotiation(listingId2, offerId2, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
     }
 
     function test_setAttestationRelayer_zeroReverts() public {
-        vm.expectRevert(HaggleEscrow.ZeroAddress.selector);
+        vm.expectRevert(BargoEscrow.ZeroAddress.selector);
         escrow.setAttestationRelayer(address(0));
     }
 
@@ -203,7 +203,7 @@ contract HaggleEscrowTest is Test {
         bytes memory rlnProof = _makeRLNProof(buyer, listingId);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(2)));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(2)));
         escrow.submitOffer(listingId, BID_PRICE, rlnProof);
     }
 
@@ -213,7 +213,7 @@ contract HaggleEscrowTest is Test {
         bytes memory rlnProof = _makeRLNProof(buyer, listingId);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(1)));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.KarmaTierBelowRequired.selector, uint8(0), uint8(1)));
         escrow.submitOffer(listingId, BID_PRICE, rlnProof);
     }
 
@@ -237,7 +237,7 @@ contract HaggleEscrowTest is Test {
         // 4th offer should revert
         bytes memory rlnProof = _makeRLNProof(buyer, listingIds[3]);
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.ThroughputExceeded.selector, buyer, uint256(3), uint256(3)));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.ThroughputExceeded.selector, buyer, uint256(3), uint256(3)));
         escrow.submitOffer(listingIds[3], BID_PRICE, rlnProof);
     }
 
@@ -334,8 +334,8 @@ contract HaggleEscrowTest is Test {
         vm.prank(buyer);
         escrow.reportNoShow(dealId);
 
-        HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.NOSHOW));
+        BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.NOSHOW));
 
         // Buyer pulls refund
         uint256 buyerBefore = buyer.balance;
@@ -343,7 +343,7 @@ contract HaggleEscrowTest is Test {
         escrow.refund(dealId);
 
         deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.REFUNDED));
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.REFUNDED));
         assertEq(buyer.balance, buyerBefore + AGREED_PRICE);
     }
 
@@ -357,7 +357,7 @@ contract HaggleEscrowTest is Test {
         escrow.lockEscrow{value: AGREED_PRICE}(dealId);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.SettlementWindowOpen.selector, dealId));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.SettlementWindowOpen.selector, dealId));
         escrow.reportNoShow(dealId);
     }
 
@@ -368,13 +368,13 @@ contract HaggleEscrowTest is Test {
         bytes memory rlnProof = _makeRLNProof(buyer, fakeListing);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.ListingNotActive.selector, fakeListing));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.ListingNotActive.selector, fakeListing));
         escrow.submitOffer(fakeListing, BID_PRICE, rlnProof);
     }
 
     function test_zeroAmountListingReverts() public {
         vm.prank(seller);
-        vm.expectRevert(HaggleEscrow.ZeroAmount.selector);
+        vm.expectRevert(BargoEscrow.ZeroAmount.selector);
         escrow.registerListing(0, 0, keccak256("meta"));
     }
 
@@ -383,7 +383,7 @@ contract HaggleEscrowTest is Test {
         bytes memory rlnProof = _makeRLNProof(buyer, listingId);
 
         vm.prank(buyer);
-        vm.expectRevert(HaggleEscrow.ZeroAmount.selector);
+        vm.expectRevert(BargoEscrow.ZeroAmount.selector);
         escrow.submitOffer(listingId, 0, rlnProof);
     }
 
@@ -394,7 +394,7 @@ contract HaggleEscrowTest is Test {
 
         vm.deal(buyer, 10 ether);
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.WrongEscrowAmount.selector, 1 ether, AGREED_PRICE));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.WrongEscrowAmount.selector, 1 ether, AGREED_PRICE));
         escrow.lockEscrow{value: 1 ether}(dealId);
     }
 
@@ -408,7 +408,7 @@ contract HaggleEscrowTest is Test {
         escrow.lockEscrow{value: AGREED_PRICE}(dealId);
 
         vm.prank(eve);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.NotParticipant.selector, eve));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.NotParticipant.selector, eve));
         escrow.confirmMeetup(dealId);
     }
 
@@ -433,15 +433,15 @@ contract HaggleEscrowTest is Test {
         assertEq(escrow.activeNegotiations(buyer), 0);
 
         // State must be REFUNDED
-        HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.REFUNDED));
+        BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
+        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.REFUNDED));
     }
 
     function test_cancelOffer_beforeSettle_reverts() public {
         // There is no deal before settle — DealNotPending should revert.
         bytes32 fakeId = keccak256("fake-deal");
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.DealNotPending.selector, fakeId));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.DealNotPending.selector, fakeId));
         escrow.cancelOffer(fakeId);
     }
 
@@ -454,7 +454,7 @@ contract HaggleEscrowTest is Test {
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.DealNotInNoShow.selector, dealId));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.DealNotInNoShow.selector, dealId));
         escrow.refund(dealId);
     }
 
@@ -471,7 +471,7 @@ contract HaggleEscrowTest is Test {
         escrow.confirmMeetup(dealId);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.AlreadyConfirmed.selector, buyer));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.AlreadyConfirmed.selector, buyer));
         escrow.confirmMeetup(dealId);
     }
 }

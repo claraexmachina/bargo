@@ -1,6 +1,6 @@
 'use client';
 
-import { hoodiChain } from '@haggle/shared';
+import { hoodiChain } from '@bargo/shared';
 import { createConfig, http } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 

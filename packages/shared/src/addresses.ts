@@ -5,7 +5,7 @@ import type { Address } from './types.js';
 export const ADDRESSES: Record<
   number,
   {
-    haggleEscrow: Address;
+    bargoEscrow: Address;
     karmaReader: Address;
     rlnVerifier: Address;
   }

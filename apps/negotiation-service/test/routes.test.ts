@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerRoutes } from '../src/routes/index.js';
-import type { KarmaTier } from '@haggle/shared';
+import type { KarmaTier } from '@bargo/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -99,7 +99,7 @@ function makeChainDeps(overrides?: {
       }),
     } as unknown as import('../src/chain/read.js').createChainClient extends (...args: infer _) => infer R ? R : never,
     karmaReaderAddress: '0x0000000000000000000000000000000000000001' as const,
-    haggleEscrowAddress: '0x0000000000000000000000000000000000000002' as const,
+    bargoEscrowAddress: '0x0000000000000000000000000000000000000002' as const,
     rpcUrl: 'http://localhost:8545',
   };
 }
@@ -124,7 +124,7 @@ async function buildApp(
       timeoutMs: 8000,
     },
     relayerPrivateKey: RELAYER_PK,
-    haggleEscrowAddress: '0x0000000000000000000000000000000000000002',
+    bargoEscrowAddress: '0x0000000000000000000000000000000000000002',
     attestationDir: '/tmp/test-attestations',
   });
   return app;

@@ -13,8 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePostListing } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
-import type { KarmaTier, Hex } from '@haggle/shared';
-import { haggleEscrowAbi, ADDRESSES } from '@haggle/shared';
+import type { KarmaTier, Hex } from '@bargo/shared';
+import { bargoEscrowAbi, ADDRESSES } from '@bargo/shared';
 
 const CATEGORIES = [
   { value: 'electronics', label: '전자기기' },
@@ -49,7 +49,7 @@ export default function NewListingPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitStep, setSubmitStep] = React.useState<'idle' | 'onchain' | 'service'>('idle');
 
-  const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.haggleEscrow;
+  const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.bargoEscrow;
 
   const canSubmit =
     isConnected &&
@@ -95,7 +95,7 @@ export default function NewListingPage() {
       toast.info('지갑에서 트랜잭션을 승인하세요...');
       const txHash = await writeContractAsync({
         address: escrowAddress,
-        abi: haggleEscrowAbi,
+        abi: bargoEscrowAbi,
         functionName: 'registerListing',
         args: [BigInt(askPriceWei), requiredTier, itemMetaHash],
       });
@@ -106,7 +106,7 @@ export default function NewListingPage() {
       const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
 
       const logs = parseEventLogs({
-        abi: haggleEscrowAbi,
+        abi: bargoEscrowAbi,
         eventName: 'ListingCreated',
         logs: receipt.logs,
       });

@@ -1,5 +1,5 @@
 // Auto-generated from forge build. Do NOT hand-edit.
-export const haggleEscrowAbi = [
+export const bargoEscrowAbi = [
   {
     "type": "constructor",
     "inputs": [
@@ -119,7 +119,7 @@ export const haggleEscrowAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct HaggleEscrow.Deal",
+        "internalType": "struct BargoEscrow.Deal",
         "components": [
           {
             "name": "listingId",
@@ -159,7 +159,7 @@ export const haggleEscrowAbi = [
           {
             "name": "state",
             "type": "uint8",
-            "internalType": "enum HaggleEscrow.DealState"
+            "internalType": "enum BargoEscrow.DealState"
           },
           {
             "name": "createdAt",
@@ -190,7 +190,7 @@ export const haggleEscrowAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct HaggleEscrow.Listing",
+        "internalType": "struct BargoEscrow.Listing",
         "components": [
           {
             "name": "seller",

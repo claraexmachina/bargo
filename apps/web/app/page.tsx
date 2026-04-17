@@ -39,7 +39,7 @@ export default function HomePage() {
         <div className="w-px bg-border" />
         <div>
           <p className="text-2xl font-bold text-primary">5초</p>
-          <p className="text-xs text-muted-foreground">Haggle 협상 시간</p>
+          <p className="text-xs text-muted-foreground">Bargo 협상 시간</p>
         </div>
       </div>
 

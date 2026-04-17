@@ -1,4 +1,4 @@
-# QA Report — Haggle v1
+# QA Report — Bargo v1
 
 Date: 2026-04-17
 Branch: `qa/audit`
@@ -39,7 +39,7 @@ All driven via HTTP from `scripts/qa-scenarios.mjs` against the live mock-TEE se
 | 2 | Condition mismatch fail | PARTIAL | Mock TEE has no real condition engine — agreement is gated only on `maxBuy ≥ minSell`. We exercised the `fail` branch via `maxBuy < minSell` → `reasonHash = keccak256("no_price_zopa")` matches spec. True condition-mismatch testing requires deployed real-TEE LLM. Unit test `services/tee/tests/test_match_conditions.py` covers the condition logic (14 passing). |
 | 3 | Karma gate reject | UNTESTED-UNTIL-DEPLOYED | Without deployed `KarmaReader`, `canOffer()` falls back to permissive (read error → `true`). Code path covered by `apps/negotiation-service/test/routes.test.ts` "karma-gate fail → 403 karma-gate" unit test (stubbed chain client). |
 | 4 | RLN rate limit (4th submission in same epoch) | PASS | 3 accepted, 4th returns 403 `{ error.code: "rln-rejected" }`. `RLN_MAX_PER_EPOCH = 3` enforced by `rln_nullifiers` table. |
-| 5 | No-show flow (Solidity) | PASS (Foundry) | `contracts/test/HaggleEscrow.t.sol::test_noShowFlow` — lock escrow, warp past `lockedUntil`, `reportNoShow` releases refund to buyer. Companion `test_reportNoShowBeforeWindowReverts` guards the window. |
+| 5 | No-show flow (Solidity) | PASS (Foundry) | `contracts/test/BargoEscrow.t.sol::test_noShowFlow` — lock escrow, warp past `lockedUntil`, `reportNoShow` releases refund to buyer. Companion `test_reportNoShowBeforeWindowReverts` guards the window. |
 | 6 | Privacy invariant | PASS | See dedicated section below. |
 | 7a | Boundary `min_sell == max_buy` | PASS | Agreement at tie price `500000`. |
 | 7b | 255-char title | PASS | Rejected 400 (zod `max(200)`). 200-char sanity sample accepted 201. |
@@ -51,11 +51,11 @@ Overall: **10/10 QA scenarios reported PASS/EXPECTED** (scenarios 2 and 3 carry 
 ## Privacy Grep Results (zero-hit invariant)
 
 - **Pino service logs** (`/tmp/neg-service*.log`, ~18 KB combined across full scenario run at default `info` level): `grep` for `min_sell|max_buy|강남|평일|직거래` → **0 matches**. The `app.log.info` at `listing registered` / `negotiation complete` only emits `listingId`, `seller`, `negotiationId`, `result` — no plaintext leakage. Fastify redact config scrubs `*.encMinSell|encMaxBuy|encSellerConditions|encBuyerConditions|rlnProof.proof`.
-- **SQLite DB** (`apps/negotiation-service/data/haggle.db` after 8 listings and 10 offers):
+- **SQLite DB** (`apps/negotiation-service/data/bargo.db` after 8 listings and 10 offers):
   - `enc_min_sell_json` sample: `{"v":1,"ephPub":"0x3f6f...","nonce":"0xaa3a5c091b98...","ct":"0x..."}` — XChaCha20-Poly1305 envelope, not plaintext.
   - `enc_max_buy_json` sample: same JSON-wrapped envelope, encrypted.
   - `item_meta_json` (public): `{"title":"MacBook M1",...}` — expected plaintext public data.
-- **TEE source** (`services/tee/haggle_tee/`): `safe_log()` helper defined in `negotiate.py:50-57` scrubs `SENSITIVE_FIELDS = ["min_sell", "max_buy", "seller_conditions", "buyer_conditions"]` before emission. Grep for `logger.*min_sell|logger.*max_buy|print.*min_sell|print.*max_buy` → **0 matches**. Every log site in `negotiate.py` uses `safe_log`.
+- **TEE source** (`services/tee/bargo_tee/`): `safe_log()` helper defined in `negotiate.py:50-57` scrubs `SENSITIVE_FIELDS = ["min_sell", "max_buy", "seller_conditions", "buyer_conditions"]` before emission. Grep for `logger.*min_sell|logger.*max_buy|print.*min_sell|print.*max_buy` → **0 matches**. Every log site in `negotiate.py` uses `safe_log`.
 
 Privacy invariant holds for every testable surface.
 
@@ -64,7 +64,7 @@ Privacy invariant holds for every testable surface.
 1. **AAD contract mismatch between web, mock-TEE, and real TEE** (HIGH severity, blocks demo via web UI)
    - `apps/web/lib/encrypt.ts::sealPrice` / `sealConditions` default `offerId` to `ZERO_BYTES32` for **both** listing-side AND offer-side blobs (see `apps/web/app/offers/new/[listingId]/page.tsx:52-53`).
    - `apps/negotiation-service/src/tee/mock.ts::buildAad` decrypts `encMaxBuy` / `encBuyerConditions` with AAD = `listingId ‖ realOfferId` (line 93) → **AEAD auth failure** when called from the web UI → attestation returns `fail` with `reasonHash = keccak256("decryption_failed")`. Reproduced in `scripts/qa-web-bug-repro.mjs`.
-   - `services/tee/haggle_tee/negotiate.py::_hex_to_aad` decrypts **all 4 blobs** (including `encMinSell`, `encSellerConditions`) with AAD = `listingId ‖ offerId`, while web seals listing-side blobs with `offerId=ZERO`. Real TEE would also fail on `encMinSell`/`encSellerConditions` decryption.
+   - `services/tee/bargo_tee/negotiate.py::_hex_to_aad` decrypts **all 4 blobs** (including `encMinSell`, `encSellerConditions`) with AAD = `listingId ‖ offerId`, while web seals listing-side blobs with `offerId=ZERO`. Real TEE would also fail on `encMinSell`/`encSellerConditions` decryption.
    - Three sources of truth for one 64-byte AAD is a ticking bomb. Fix: standardize the AAD spec (PLAN §3.5) and make a single shared helper in `packages/crypto` (e.g. `buildAadListing`, `buildAadOffer`) consumed by web + service + TEE — Python side must read the same spec. Also: the web client cannot know `offerId` before POST; the cleanest fix is AAD = `listingId ‖ zeros` for listing-side, `listingId ‖ zeros` for offer-side too, and authenticate `offerId` outside AAD (e.g. inside the server-built `NegotiateRequest`).
 
 No other BLOCKERs found.
@@ -81,8 +81,8 @@ No other BLOCKERs found.
 
 - **Karma gate live behaviour** (Scenario 3) — requires deployed `KarmaReader` at a real address on Hoodi. Covered by unit test with stubbed `readContract`.
 - **Condition mismatch via real LLM** (Scenario 2) — requires NEAR AI Cloud endpoint + `TEE_SIGNER_PK` / `TEE_ENCRYPTION_SK` keys. Covered by `services/tee/tests/test_match_conditions.py` (14 tests) and `test_negotiate.py::test_condition_mismatch_time`.
-- **On-chain settlement** — `AttestationLib.verify` and `HaggleEscrow.settle` paths are fully covered by 34 Foundry tests; end-to-end with a real wallet requires deploying `HaggleEscrow` + `KarmaReader` + `RLNVerifier` to Hoodi and wiring frontend `NEXT_PUBLIC_*` env vars.
-- **Throughput gate under active negotiations** — requires live `HaggleEscrow.activeNegotiations` read; covered by unit test `throughput exceeded → 409`.
+- **On-chain settlement** — `AttestationLib.verify` and `BargoEscrow.settle` paths are fully covered by 34 Foundry tests; end-to-end with a real wallet requires deploying `BargoEscrow` + `KarmaReader` + `RLNVerifier` to Hoodi and wiring frontend `NEXT_PUBLIC_*` env vars.
+- **Throughput gate under active negotiations** — requires live `BargoEscrow.activeNegotiations` read; covered by unit test `throughput exceeded → 409`.
 - **RLN ZK correctness** — current implementation accepts any structurally valid stub proof; real ZK SDK integration tracked as TODO in `apps/negotiation-service/src/rln/verify.ts`.
 
 ## Demo Go/No-Go
@@ -94,4 +94,4 @@ No other BLOCKERs found.
 - `scripts/qa-seal.mjs` — encryption helper (committed on branch `qa/audit`).
 - `scripts/qa-scenarios.mjs` — 10 scenario driver, committed.
 - `scripts/qa-web-bug-repro.mjs` — minimal repro for BLOCKER #1.
-- `scripts/package.json` — workspace entry for `@haggle/qa-scripts` (added to `pnpm-workspace.yaml`).
+- `scripts/package.json` — workspace entry for `@bargo/qa-scripts` (added to `pnpm-workspace.yaml`).

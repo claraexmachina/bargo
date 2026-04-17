@@ -1,6 +1,6 @@
 {
-  "name": "Haggle",
-  "short_name": "Haggle",
+  "name": "Bargo",
+  "short_name": "Bargo",
   "description": "AI 중고거래 협상 — TEE × Status Network",
   "start_url": "/",
   "display": "standalone",

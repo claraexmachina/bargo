@@ -2,7 +2,7 @@
 // Returns current negotiation state, attestation (when agreement/settled), failureReason (when fail).
 
 import type { FastifyInstance } from 'fastify';
-import type { DealId, NearAiAttestation } from '@haggle/shared';
+import type { DealId, NearAiAttestation } from '@bargo/shared';
 import { getNegotiationById } from '../db/client.js';
 import type Database from 'better-sqlite3';
 

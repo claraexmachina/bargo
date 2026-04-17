@@ -9,7 +9,7 @@ const nextConfig = {
     ],
   },
   // Transpile workspace packages (source TypeScript)
-  transpilePackages: ['@haggle/shared', '@haggle/crypto'],
+  transpilePackages: ['@bargo/shared', '@bargo/crypto'],
 
   webpack(config) {
     // Workspace packages use ESM ".js" extension in internal imports (TypeScript bundler convention).

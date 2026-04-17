@@ -1,4 +1,4 @@
-# Haggle — Team Composition & PRD (v2)
+# Bargo — Team Composition & PRD (v2)
 
 > **에이전트가 봇과 협상하는 P2P 마켓플레이스**
 > Powered by NEAR AI Cloud TEE × Status Network
@@ -137,7 +137,7 @@ Acceptance:
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                Haggle PWA (Next.js, wagmi)                 │
+│                Bargo PWA (Next.js, wagmi)                 │
 │  Seller View │ Listings │ Offer View │ Meetup Confirmation │
 └─────┬───────────────────────────────────────┬──────────────┘
       │ HTTPS (plaintext DTOs)                │ RPC (gasless)
@@ -145,7 +145,7 @@ Acceptance:
 ┌─────▼──────────────────────┐   ┌────────────▼─────────────┐
 │  Negotiation Service        │   │  Status Network Hoodi    │
 │  (Node.js / Fastify)        │   │                          │
-│  - Listing/Offer registry   │   │  HaggleEscrow.sol        │
+│  - Listing/Offer registry   │   │  BargoEscrow.sol        │
 │  - RLN nullifier check      │   │   ├── registerListing()  │
 │  - negotiate/engine.ts      │   │   ├── submitOffer()      │
 │  - Auto-purge plaintext     │   │   │   (Karma gate +      │
@@ -214,7 +214,7 @@ Negotiation {
 -- UPDATE offers SET plaintext_max_buy=NULL, plaintext_buyer_conditions=NULL WHERE id=?
 ```
 
-**On-chain (HaggleEscrow, V2)**:
+**On-chain (BargoEscrow, V2)**:
 ```solidity
 struct Listing {
   address seller;
@@ -357,7 +357,7 @@ async function runNegotiation(listing: Listing, offer: Offer): Promise<Negotiati
 
 **0:20~0:35 — 솔루션 한 줄**
 - *"내 봇이 상대방 봇이랑 5초 만에 협상. 가격도, 만남 조건도, 다."*
-- Haggle 로고
+- Bargo 로고
 
 **0:35~1:50 — 라이브 데모 (폰 2대 실촬)**
 - 판매자 화면:

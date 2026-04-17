@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { ListingId, OfferId, DealId, NearAiAttestation, KarmaTier } from '@haggle/shared';
+import type { ListingId, OfferId, DealId, NearAiAttestation, KarmaTier } from '@bargo/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

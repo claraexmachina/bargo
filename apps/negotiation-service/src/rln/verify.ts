@@ -11,8 +11,8 @@
 import { keccak256, encodePacked } from 'viem';
 import type Database from 'better-sqlite3';
 import { getRlnNullifierCount, recordRlnNullifier } from '../db/client.js';
-import { RLN_MAX_PER_EPOCH } from '@haggle/shared';
-import type { RLNProof } from '@haggle/shared';
+import { RLN_MAX_PER_EPOCH } from '@bargo/shared';
+import type { RLNProof } from '@bargo/shared';
 
 export type RlnVerifyResult =
   | { ok: true }
