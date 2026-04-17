@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { closeDb, getDb } from './db/client.js';
 import { startMatchmaker } from './matchmaker.js';
 import type { MatchmakerHandle } from './matchmaker.js';
+import { seedDemoListings } from './demoSeed.js';
 import { runStartupAttestationCheck } from './nearai/attestation.js';
 import { registerRoutes } from './routes/index.js';
 
@@ -74,6 +75,9 @@ async function bootstrap() {
     WHERE state IN ('queued', 'running')
       AND updated_at < (unixepoch() - ${stuckTimeout})
   `);
+
+  // Seed demo listings so matchmaker / intents have something to match against.
+  seedDemoListings(db, app.log);
 
   await app.register(cors, {
     origin: true, // permissive for hackathon; restrict in prod
