@@ -1,5 +1,5 @@
 // Auto-generated from forge build. Do NOT hand-edit.
-export const rLNVerifierAbi = [
+export const rlnVerifierAbi = [
   {
     "type": "function",
     "name": "EPOCH_DURATION",
