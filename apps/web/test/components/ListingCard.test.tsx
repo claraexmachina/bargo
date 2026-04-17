@@ -37,7 +37,7 @@ describe('ListingCard', () => {
     render(<ListingCard listing={DEMO_LISTING} />);
     const badge = screen.getByTestId('sealed-bid-badge');
     expect(badge).toBeInTheDocument();
-    expect(badge.textContent).toContain('Sealed-bid');
+    expect(badge.textContent).toContain('Sealed');
     expect(badge.textContent).toContain('Tier 2');
   });
 

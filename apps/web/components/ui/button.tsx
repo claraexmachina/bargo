@@ -18,8 +18,7 @@ const buttonVariants = cva(
           'bg-bargo-soft text-bargo-ink shadow-pixel hover:shadow-pixel-sm active:shadow-[1px_1px_0_#353B51]',
         ghost:
           'border-transparent bg-transparent shadow-none hover:bg-bargo-white hover:border-bargo-ink hover:shadow-pixel-sm hover:translate-x-0 hover:translate-y-0 active:translate-x-0 active:translate-y-0',
-        link:
-          'border-transparent bg-transparent shadow-none underline-offset-4 hover:underline hover:translate-x-0 hover:translate-y-0 active:translate-x-0 active:translate-y-0 text-bargo-ink normal-case tracking-normal',
+        link: 'border-transparent bg-transparent shadow-none underline-offset-4 hover:underline hover:translate-x-0 hover:translate-y-0 active:translate-x-0 active:translate-y-0 text-bargo-ink normal-case tracking-normal',
       },
       size: {
         default: 'h-11 px-6 text-sm',

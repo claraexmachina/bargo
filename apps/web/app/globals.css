@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -18,7 +18,7 @@
   body {
     background-color: var(--bargo-bg);
     color: var(--bargo-ink);
-    font-family: 'Helvetica Neue', Arial, system-ui, sans-serif;
+    font-family: "Helvetica Neue", Arial, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -91,7 +91,7 @@
     @apply border-4 border-bargo-ink font-mono p-4 overflow-hidden;
     background: #0a0f0a;
     color: #4ade80;
-    font-family: 'VT323', 'Courier New', Courier, monospace;
+    font-family: "VT323", "Courier New", Courier, monospace;
     font-size: 14px;
     line-height: 1.4;
     box-shadow: 4px 4px 0 var(--bargo-ink);
@@ -113,10 +113,18 @@
     height: 36px;
     background-color: var(--bargo-ink);
     clip-path: polygon(
-      0 20%, 20% 20%, 20% 0,
-      80% 0, 80% 20%, 100% 20%,
-      100% 80%, 80% 80%, 80% 100%,
-      20% 100%, 20% 80%, 0 80%
+      0 20%,
+      20% 20%,
+      20% 0,
+      80% 0,
+      80% 20%,
+      100% 20%,
+      100% 80%,
+      80% 80%,
+      80% 100%,
+      20% 100%,
+      20% 80%,
+      0 80%
     );
   }
 
@@ -128,9 +136,7 @@
 
   .pixel-field:focus {
     outline: none;
-    box-shadow:
-      inset 2px 2px 0 rgba(53, 59, 81, 0.08),
-      4px 4px 0 var(--bargo-accent);
+    box-shadow: inset 2px 2px 0 rgba(53, 59, 81, 0.08), 4px 4px 0 var(--bargo-accent);
   }
 
   /* ---- Dashed bordered panel (value grid) ---- */

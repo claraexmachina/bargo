@@ -36,11 +36,9 @@ export function ListingCard({ listing }: ListingCardProps) {
           <h3 className="font-mono font-black uppercase text-sm tracking-wide line-clamp-2">
             {listing.itemMeta.title}
           </h3>
-          <div
-            data-testid="sealed-bid-badge"
-            className="pixel-pill bg-bargo-accent"
-          >
-            Sealed · Tier {listing.requiredKarmaTier}+ ({TIER_REQUIRED_LABEL[listing.requiredKarmaTier]})
+          <div data-testid="sealed-bid-badge" className="pixel-pill bg-bargo-accent">
+            Sealed · Tier {listing.requiredKarmaTier}+ (
+            {TIER_REQUIRED_LABEL[listing.requiredKarmaTier]})
           </div>
           <p className="text-xs leading-snug opacity-80 line-clamp-2">
             {listing.itemMeta.description}
@@ -48,9 +46,7 @@ export function ListingCard({ listing }: ListingCardProps) {
         </div>
         <div className="flex items-center justify-between border-t-4 border-bargo-ink p-3">
           <KarmaBadge tier={0} showLabel={false} />
-          <span className="font-mono text-[10px] uppercase tracking-widest opacity-60">
-            Open →
-          </span>
+          <span className="font-mono text-[10px] uppercase tracking-widest opacity-60">Open →</span>
         </div>
       </div>
     </Link>

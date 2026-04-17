@@ -51,7 +51,7 @@ describe('NegotiationStatus — fail state', () => {
   it('renders only the fail message, no price or condition detail', () => {
     render(<NegotiationStatus status={FAIL_STATUS} />);
 
-    expect(screen.getByText(/negotiation failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/no deal — the cats walked away/i)).toBeInTheDocument();
 
     // Must NOT reveal any price or condition text
     expect(screen.queryByText(/700,000/)).not.toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('NegotiationStatus — running state', () => {
     };
     render(<NegotiationStatus status={runningStatus} />);
 
-    expect(screen.getByText(/negotiating inside NEAR AI TEE/i)).toBeInTheDocument();
+    expect(screen.getByText(/cats bartering inside TEE/i)).toBeInTheDocument();
     expect(screen.queryByText(/700,000/)).not.toBeInTheDocument();
     expect(screen.queryByText(/750,000/)).not.toBeInTheDocument();
     expect(screen.queryByText(/강남/)).not.toBeInTheDocument();
@@ -89,7 +89,7 @@ describe('NegotiationStatus — running state', () => {
 describe('NegotiationStatus — agreement state', () => {
   it('shows agreed price and conditions', () => {
     render(<NegotiationStatus status={AGREEMENT_STATUS} />);
-    expect(screen.getByText(/agreement reached/i)).toBeInTheDocument();
+    expect(screen.getByText(/paws shook — deal locked/i)).toBeInTheDocument();
     expect(screen.getByText(/강남역 8번출구/)).toBeInTheDocument();
   });
 

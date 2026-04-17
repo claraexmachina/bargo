@@ -33,7 +33,11 @@ export function NetworkGuard() {
       // Fall through to explicit add
     }
 
-    const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<unknown> } }).ethereum;
+    const ethereum = (
+      window as unknown as {
+        ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<unknown> };
+      }
+    ).ethereum;
     if (!ethereum) {
       setError('No wallet detected.');
       return;
@@ -70,9 +74,7 @@ export function NetworkGuard() {
           Bargo uses <strong>Status Network Hoodi</strong> (chainId {hoodiChain.id}). MetaMask's
           default "Hoodi" preset is the Ethereum L1 testnet (560048) — not the same.
         </p>
-        {error && (
-          <p className="text-xs text-destructive font-mono mt-1">{error}</p>
-        )}
+        {error && <p className="text-xs text-destructive font-mono mt-1">{error}</p>}
       </div>
       <Button size="sm" onClick={addAndSwitch} disabled={isPending}>
         {isPending ? 'Switching...' : 'Switch network'}

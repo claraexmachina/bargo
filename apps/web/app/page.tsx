@@ -41,7 +41,10 @@ export default function HomePage() {
                 <div className="pixel-box-soft bg-bargo-white p-2 text-[9px] font-mono uppercase font-bold">
                   “700k ok?”
                 </div>
-                <PixelCat role="seller" className="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-[3px_3px_0_#353B51]" />
+                <PixelCat
+                  variant="seller"
+                  className="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-[3px_3px_0_#353B51]"
+                />
                 <span className="pixel-pill">Seller</span>
               </div>
 
@@ -60,7 +63,10 @@ export default function HomePage() {
                 <div className="pixel-box-soft bg-bargo-soft p-2 text-[9px] font-mono uppercase font-bold">
                   “750k?”
                 </div>
-                <PixelCat role="buyer" className="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-[3px_3px_0_#353B51]" />
+                <PixelCat
+                  variant="buyer"
+                  className="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-[3px_3px_0_#353B51]"
+                />
                 <span className="pixel-pill bg-bargo-soft">Buyer</span>
               </div>
             </div>

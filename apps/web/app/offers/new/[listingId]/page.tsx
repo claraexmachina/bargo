@@ -1,9 +1,9 @@
 'use client';
 
 import { ConditionInput } from '@/components/ConditionInput';
+import { NetworkGuard } from '@/components/NetworkGuard';
 import { PriceInput } from '@/components/PriceInput';
 import { UserKarma } from '@/components/UserKarma';
-import { NetworkGuard } from '@/components/NetworkGuard';
 import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

@@ -22,12 +22,9 @@ function CatVsCatAnimation() {
       <div className="flex items-center justify-center gap-4 sm:gap-8">
         {/* Seller cat */}
         <div className="flex flex-col items-center gap-2 animate-bounce-left">
-          <span
-            className="h-2 w-2 bg-bargo-ink animate-accent-blink-a"
-            aria-hidden="true"
-          />
+          <span className="h-2 w-2 bg-bargo-ink animate-accent-blink-a" aria-hidden="true" />
           <PixelCat
-            role="seller"
+            variant="seller"
             className="w-20 h-20 drop-shadow-[3px_3px_0_#353B51] animate-bot-pulse"
           />
           <span className="pixel-pill">Seller</span>
@@ -42,12 +39,9 @@ function CatVsCatAnimation() {
 
         {/* Buyer cat */}
         <div className="flex flex-col items-center gap-2 animate-bounce-right">
-          <span
-            className="h-2 w-2 bg-bargo-ink animate-accent-blink-b"
-            aria-hidden="true"
-          />
+          <span className="h-2 w-2 bg-bargo-ink animate-accent-blink-b" aria-hidden="true" />
           <PixelCat
-            role="buyer"
+            variant="buyer"
             className="w-20 h-20 drop-shadow-[3px_3px_0_#353B51] animate-bot-pulse"
           />
           <span className="pixel-pill bg-bargo-soft">Buyer</span>
@@ -65,7 +59,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
       <div className="text-center space-y-4">
         <CatVsCatAnimation />
         <p className="font-mono text-sm font-bold uppercase tracking-wider">
-          Cats haggling inside TEE...
+          Cats bartering inside TEE...
         </p>
         <p className="text-xs text-bargo-ink/70 max-w-md mx-auto leading-relaxed">
           Price and conditions are processed inside NEAR AI TEE. Counterparty never sees them.
@@ -84,9 +78,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         <p className="font-mono font-black uppercase tracking-wider text-sm">
           No deal — the cats walked away
         </p>
-        <p className="text-xs text-bargo-ink/70">
-          Conditions clashed. Which ones? Kept private.
-        </p>
+        <p className="text-xs text-bargo-ink/70">Conditions clashed. Which ones? Kept private.</p>
         {onRetry && (
           <Button onClick={onRetry} variant="outline" size="sm">
             Try again
@@ -152,9 +144,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         {state === 'settled' && (
           <div className="pixel-box bg-bargo-white p-3 flex items-center gap-2">
             <span className="h-2 w-2 bg-bargo-accent" aria-hidden="true" />
-            <p className="font-mono text-xs font-bold uppercase tracking-wider">
-              Escrow locked
-            </p>
+            <p className="font-mono text-xs font-bold uppercase tracking-wider">Escrow locked</p>
           </div>
         )}
       </div>
