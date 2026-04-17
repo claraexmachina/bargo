@@ -69,3 +69,29 @@ CREATE TABLE IF NOT EXISTS id_counters (
   key    TEXT PRIMARY KEY,
   value  INTEGER NOT NULL DEFAULT 0
 );
+
+-- Standing Intents — buyer's sealed discovery preferences.
+-- enc blobs sealed to service pubkey with INTENT_CONTEXT_AAD (keccak256("bargo-intent-v1")).
+CREATE TABLE IF NOT EXISTS intents (
+  id                           BLOB PRIMARY KEY,
+  buyer                        TEXT NOT NULL,
+  enc_max_buy_json             TEXT NOT NULL,
+  enc_buyer_conditions_json    TEXT NOT NULL,
+  filters_json                 TEXT NOT NULL,
+  expires_at                   INTEGER NOT NULL,
+  active                       INTEGER NOT NULL DEFAULT 1,
+  created_at                   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_intents_buyer_active ON intents(buyer, active);
+
+-- Intent match notifications — inserted by matchmaker, polled by buyer.
+CREATE TABLE IF NOT EXISTS intent_matches (
+  intent_id    BLOB NOT NULL,
+  listing_id   BLOB NOT NULL,
+  score        TEXT NOT NULL,
+  match_reason TEXT NOT NULL,
+  matched_at   INTEGER NOT NULL,
+  acknowledged INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (intent_id, listing_id)
+);
+CREATE INDEX IF NOT EXISTS idx_intent_matches_intent_ack ON intent_matches(intent_id, acknowledged);

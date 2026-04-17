@@ -8,6 +8,8 @@ import { createChainClient } from './chain/read.js';
 import { startFundsReleasedWatcher } from './chain/watcher.js';
 import { config } from './config.js';
 import { closeDb, getDb } from './db/client.js';
+import { startMatchmaker } from './matchmaker.js';
+import type { MatchmakerHandle } from './matchmaker.js';
 import { runStartupAttestationCheck } from './nearai/attestation.js';
 import { registerRoutes } from './routes/index.js';
 
@@ -107,6 +109,15 @@ async function bootstrap() {
   );
   app.log.info('FundsReleased watcher started');
 
+  const matchmaker = startMatchmaker({
+    db,
+    publicClient: chainClient,
+    escrowAddress: config.bargoEscrowAddress,
+    serviceDecryptSk: config.serviceDecryptSk,
+    nearAi: config.nearAi,
+    log: app.log,
+  });
+
   if (process.env.NEAR_AI_STARTUP_CHECK === 'true') {
     await runStartupAttestationCheck({
       model: config.nearAi.model,
@@ -123,13 +134,17 @@ async function bootstrap() {
     );
   }
 
-  return unwatchFundsReleased;
+  return { unwatchFundsReleased, matchmaker };
 }
 
 let _unwatchFundsReleased: (() => void) | undefined;
+let _matchmaker: MatchmakerHandle | undefined;
 
 async function shutdown(signal: string) {
   app.log.info({ signal }, 'shutting down');
+  if (_matchmaker) {
+    await _matchmaker.stop();
+  }
   if (_unwatchFundsReleased) {
     _unwatchFundsReleased();
     app.log.info('FundsReleased watcher stopped');
@@ -143,8 +158,9 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 
 bootstrap()
-  .then((unwatch) => {
-    _unwatchFundsReleased = unwatch;
+  .then(({ unwatchFundsReleased, matchmaker }) => {
+    _unwatchFundsReleased = unwatchFundsReleased;
+    _matchmaker = matchmaker;
   })
   .catch((err) => {
     console.error('Fatal startup error:', err);

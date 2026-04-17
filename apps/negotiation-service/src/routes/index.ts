@@ -5,6 +5,7 @@ import type Database from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
 import type { createChainClient } from '../chain/read.js';
 import { attestationRoutes } from './attestation.js';
+import { intentRoutes } from './intents.js';
 import { listingRoutes } from './listing.js';
 import { offerRoutes } from './offer.js';
 import { servicePubkeyRoutes } from './servicePubkey.js';
@@ -52,5 +53,6 @@ export async function registerRoutes(
     });
     await statusRoutes(sub, { db: opts.db });
     await attestationRoutes(sub, { db: opts.db, attestationDir: opts.attestationDir });
+    await intentRoutes(sub, { db: opts.db });
   });
 }
