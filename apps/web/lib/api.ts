@@ -137,7 +137,7 @@ export function useAttestationBundle(dealId: DealId | null) {
 // ─── Standing Intents ─────────────────────────────────────────────────────────
 
 export async function postIntent(body: PostIntentRequest): Promise<PostIntentResponse> {
-  return fetchJSON<PostIntentResponse>('/intent', {
+  return fetchJSON<PostIntentResponse>('/intents', {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -166,7 +166,7 @@ export function useIntents(buyer: Address | undefined) {
 }
 
 export async function deleteIntent(id: IntentId, buyer: Address): Promise<void> {
-  await fetchJSON<void>(`/intent/${id}?buyer=${buyer}`, { method: 'DELETE' });
+  await fetchJSON<void>(`/intents/${id}?buyer=${buyer}`, { method: 'DELETE' });
 }
 
 export async function fetchIntentMatches(buyer: Address): Promise<GetIntentMatchesResponse> {
