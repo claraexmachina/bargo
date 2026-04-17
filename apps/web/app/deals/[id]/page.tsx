@@ -56,22 +56,30 @@ export default function DealPage() {
     setIsTerminal(true);
   }
 
-  async function handleLockEscrow(agreedPrice: string) {
+  async function handleLockEscrow(agreedPriceWei: string) {
     if (!address) {
       toast.error('Connect your wallet');
+      return;
+    }
+    if (!escrowAddress) {
+      toast.error('Escrow contract address not configured');
       return;
     }
 
     toast.info('Locking escrow...');
     try {
-      // In production: call lockEscrow(dealId, {value: agreedPriceWei})
-      // ABI stub is empty — when contract-lead ships ABI this activates.
-      // For demo: simulate success
-      void agreedPrice; // used via on-chain call in production
+      await writeContractAsync({
+        address: escrowAddress,
+        abi: bargoEscrowAbi,
+        functionName: 'lockEscrow',
+        args: [dealId],
+        value: BigInt(agreedPriceWei),
+      });
       setEscrowLocked(true);
       toast.success('Escrow locked! Confirm the meetup when you receive the item.');
-    } catch {
-      toast.error('Escrow lock failed. Check your wallet and try again.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Escrow lock failed';
+      toast.error(`Escrow lock failed: ${msg}`);
     }
   }
 
