@@ -41,7 +41,7 @@ describe('ConditionInput component', () => {
   it('shows TEE privacy hint', () => {
     render(<ConditionInput value="" onChange={() => {}} />);
     // The hint spans multiple DOM nodes (strong + text); check for key substrings
-    expect(screen.getByText(/자동 purge/)).toBeInTheDocument();
+    expect(screen.getByText(/auto-purged/i)).toBeInTheDocument();
     expect(screen.getByText(/NEAR AI TEE/)).toBeInTheDocument();
   });
 
@@ -61,7 +61,7 @@ describe('ConditionInput component', () => {
       textarea.dispatchEvent(event);
     });
 
-    expect(screen.getByText(/이메일·전화번호 등 개인정보가 감지되었습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/personal information detected/i)).toBeInTheDocument();
   });
 
   it('shows sensitive warning when paste event fires with phone number', async () => {
@@ -77,7 +77,7 @@ describe('ConditionInput component', () => {
       textarea.dispatchEvent(event);
     });
 
-    expect(screen.getByText(/이메일·전화번호 등 개인정보가 감지되었습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/personal information detected/i)).toBeInTheDocument();
   });
 
   it('does not warn for normal condition text paste', async () => {
@@ -93,6 +93,6 @@ describe('ConditionInput component', () => {
       textarea.dispatchEvent(event);
     });
 
-    expect(screen.queryByText(/이메일·전화번호 등 개인정보/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/personal information detected/i)).not.toBeInTheDocument();
   });
 });

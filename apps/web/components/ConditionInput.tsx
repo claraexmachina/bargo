@@ -31,7 +31,7 @@ export function ConditionInput({
   id,
   value,
   onChange,
-  placeholder = '예: 강남/송파 직거래만, 평일 19시 이후, 박스 없음',
+  placeholder = 'e.g. Gangnam/Songpa in-person only, weekday evenings, no box',
   className,
   disabled,
 }: ConditionInputProps) {
@@ -81,13 +81,13 @@ export function ConditionInput({
       <div className="flex items-start justify-between gap-2">
         <div id={id ? `${id}-hint` : undefined} className="space-y-0.5">
           <p className="text-xs text-muted-foreground">
-            이 조건은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 운영자는 합의 직후
-            plaintext 자동 purge. 상대방은 절대 볼 수 없습니다.
+            Processed inside <strong>NEAR AI TEE</strong>. Auto-purged after agreement. Counterparty
+            never sees it.
           </p>
           {sensitiveWarning && (
             <p className="text-xs text-destructive" role="alert">
-              이메일·전화번호 등 개인정보가 감지되었습니다. 조건 텍스트에 개인정보를 포함하지
-              마세요.
+              Personal information detected (email or phone number). Do not include personal details
+              in condition text.
             </p>
           )}
         </div>

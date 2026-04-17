@@ -27,29 +27,31 @@ export function MeetupQR({ dealId, signature, onScan }: MeetupQRProps) {
     <div className="space-y-6">
       {/* My QR code */}
       <div className="flex flex-col items-center gap-3">
-        <p className="text-sm font-medium">내 QR 코드 (상대방이 스캔)</p>
+        <p className="text-sm font-medium">My QR code (counterparty scans this)</p>
         <div className="rounded-xl border-2 border-primary/30 p-3 bg-white">
           <QRCodeSVG value={qrPayload} size={200} level="M" aria-label={`Deal ${dealId} QR code`} />
         </div>
         <p className="text-xs text-muted-foreground text-center">
-          이 QR을 상대방 화면에 보여주세요
+          Show this QR to your counterparty
         </p>
       </div>
 
       {/* Manual payload input (camera scanner fallback for demo) */}
       {onScan && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">상대방 QR 스캔</p>
-          <p className="text-xs text-muted-foreground">데모: 상대방 QR의 내용을 직접 붙여넣기</p>
+          <p className="text-sm font-medium">Scan counterparty QR</p>
+          <p className="text-xs text-muted-foreground">
+            Demo: paste the counterparty's QR payload directly
+          </p>
           <div className="flex gap-2">
             <Input
               value={manualPayload}
               onChange={(e) => setManualPayload(e.target.value)}
               placeholder='{"dealId":"0x...","signature":"0x..."}'
-              aria-label="상대방 QR 페이로드 입력"
+              aria-label="Counterparty QR payload"
             />
             <Button onClick={handleManualSubmit} disabled={!manualPayload.trim()}>
-              확인
+              Confirm
             </Button>
           </div>
         </div>

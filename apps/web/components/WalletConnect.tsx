@@ -17,9 +17,9 @@ export function WalletConnect() {
           variant="outline"
           size="sm"
           onClick={() => disconnect()}
-          aria-label="지갑 연결 해제"
+          aria-label="Disconnect wallet"
         >
-          연결 해제
+          Disconnect
         </Button>
       </div>
     );
@@ -34,9 +34,9 @@ export function WalletConnect() {
       }}
       disabled={isPending || !injectedConnector}
       size="sm"
-      aria-label="지갑 연결"
+      aria-label="Connect wallet"
     >
-      {isPending ? '연결 중...' : '지갑 연결 (Wallet)'}
+      {isPending ? 'Connecting...' : 'Connect wallet'}
     </Button>
   );
 }

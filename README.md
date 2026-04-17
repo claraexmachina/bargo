@@ -1,15 +1,15 @@
 # Bargo
 
-> NEAR AI TEE × Status Network — P2P 중고거래 협상 자동화
+> NEAR AI TEE × Status Network — P2P negotiation automation
 
 **Status: V2 demo-ready (NEAR AI TEE + Status Network Hoodi gasless)**
 
-AI 봇이 양측 reservation price·자연어 조건을 비공개로 협상합니다. 협상은 NEAR AI Cloud (Intel TDX + NVIDIA GPU TEE) 안에서 이루어지며 심사위원이 직접 검증할 수 있습니다.
+AI bots negotiate both sides' reservation prices and natural-language conditions privately. Negotiation runs inside NEAR AI Cloud (Intel TDX + NVIDIA GPU TEE) and can be independently verified by judges.
 
-- [PRD](./PRD.md) — 문제 정의, 유저 스토리, 데모 시나리오 (§2.12)
-- [PLAN_V2.md](./PLAN_V2.md) — V2 아키텍처, 공유 타입, 파일 소유권, 단계 게이트
-- [Threat model](./docs/threat-model.md) — V2 정직한 신뢰 모델 (10행 위협 테이블)
-- [Attestation verification](./docs/attestation-verification.md) — 심사위원 검증 가이드
+- [PRD](./PRD.md) — problem definition, user stories, demo scenario (§2.12)
+- [PLAN_V2.md](./PLAN_V2.md) — V2 architecture, shared types, file ownership, phase gates
+- [Threat model](./docs/threat-model.md) — V2 honest trust model (10-row threat table)
+- [Attestation verification](./docs/attestation-verification.md) — judge verification guide
 
 ## Architecture
 
@@ -33,27 +33,27 @@ Web (Next.js PWA) ──► Negotiation Service (Fastify + SQLite)
                     └────────────────────────────────────┘
 ```
 
-**신뢰 모델 요약**: 운영자는 협상 ~15초간 plaintext를 보며, 거래 완료 즉시 DB에서 자동 삭제됩니다. NEAR AI TEE의 LLM 추론은 심사위원이 `verify-attestation.mjs`로 독립 검증 가능합니다.
+**Trust model summary**: Operator sees plaintext for ~15s during negotiation; auto-purged from DB on deal completion. NEAR AI TEE LLM inference can be independently verified by judges via `verify-attestation.mjs`.
 
-**Gasless 상태**: Status Network Hoodi의 RLN prover 버그로 현재 gasless 일시 중단 (주최측 공지). 앱은 `linea_estimateGas`를 통합하여 **gasless-ready** — 수정 반영 시 자동으로 gasless 동작. 그 전까지는 유료 가스.
+**Gasless status**: Gasless is temporarily suspended on Status Network Hoodi due to an RLN prover bug (announced by the organiser). The app integrates `linea_estimateGas` and is **gasless-ready** — will switch automatically once the fix ships. Until then, paid gas is used.
 
 ## Quick start
 
 ```bash
 # Prerequisites: pnpm 9, Node 20+, Foundry
 pnpm install
-cp .env.example .env.local   # 아래 환경변수 참고
+cp .env.example .env.local   # see environment variables below
 ```
 
 ```bash
-# Terminal 1 — negotiation service (NEAR AI API key 필요)
+# Terminal 1 — negotiation service (requires NEAR AI API key)
 cd apps/negotiation-service && pnpm dev
 
 # Terminal 2 — web
 cd apps/web && pnpm dev
 ```
 
-Open http://localhost:3000 → 지갑 연결 (Hoodi chainId 374) → 매물 등록 → 오퍼 제출 → 봇 vs 봇 협상 → 합의 결과 확인
+Open http://localhost:3000 → Connect wallet (Hoodi chainId 374) → Create listing → Submit offer → Bot vs bot negotiation → View agreement result
 
 ## Environment variables
 
@@ -94,7 +94,7 @@ NVIDIA_NRAS_URL=https://nras.attestation.nvidia.com/v3/attest/gpu
 
 ```bash
 pnpm -r typecheck          # 0 errors across all TS
-pnpm -C apps/web test      # 28 web tests
+pnpm -C apps/web test      # web tests
 pnpm -C apps/negotiation-service test  # 34 service tests
 cd contracts && forge test # 34 Solidity tests
 node scripts/verify-attestation.mjs --file scripts/fixtures/sample-attestation.json  # verifier smoke test
