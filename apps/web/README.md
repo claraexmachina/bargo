@@ -47,8 +47,8 @@ Buyers can register a one-time sealed standing intent from the `/intents/new` pa
 4. Submit → redirects to `/deals/:id`.
 5. `/deals/:id` polls status, shows bot-vs-bot animation → agreement (NEAR AI qwen3-30b in TEE, under 15s).
 6. `AttestationViewer` shows: model ID, attestation hash, hoodiscan.status.network explorer link, verify script.
-7. Click "Lock escrow" → meetup QR flow.
-8. Paste other party's QR → confetti.
+7. Click "Lock escrow" — buyer's wallet locks the agreed price on-chain.
+8. After the in-person handoff, buyer clicks "Confirm meetup & release funds" → single tx releases escrow to seller → confetti + "Deal complete".
 
 ## Architecture
 

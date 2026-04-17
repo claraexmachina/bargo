@@ -6,7 +6,7 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'Bargo — Pixel-cats barter while you nap',
-  description: 'Two pixel-cat agents haggle inside a TEE. You just show up at the meetup.',
+  description: 'Two pixel-cat agents barter inside a TEE. You just show up at the meetup.',
   manifest: '/manifest.webmanifest',
 };
 

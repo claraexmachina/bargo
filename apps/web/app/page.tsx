@@ -9,7 +9,7 @@ export default function HomePage() {
         {/* -------- LEFT: Hero -------- */}
         <section className="flex flex-col gap-8">
           <div>
-            <span className="hero-tag">Peer-to-peer haggle bot</span>
+            <span className="hero-tag">Peer-to-peer barter bot</span>
             <h1 className="mt-5 font-mono text-4xl sm:text-5xl lg:text-6xl font-black uppercase leading-[1.05] tracking-tight">
               Two cats.
               <br />
@@ -20,7 +20,7 @@ export default function HomePage() {
               deal.
             </h1>
             <p className="mt-6 text-base sm:text-lg max-w-lg leading-relaxed">
-              Leave the awkward price-pinging to your pixel cat. It haggles with theirs inside a
+              Leave the awkward price-pinging to your pixel cat. It barters with theirs inside a
               sealed TEE — you only show up once the meetup is locked.
             </p>
           </div>
@@ -109,13 +109,13 @@ export default function HomePage() {
                 desc: 'Whisper your bottom line in plain English. It lives only inside the TEE.',
               },
               {
-                title: 'Cats haggle',
+                title: 'Cats barter',
                 desc: 'Both cats swap offers in private. Neither sees the other’s real number.',
                 highlight: true,
               },
               {
                 title: 'Meet IRL',
-                desc: 'On-chain escrow locks. QR meetup. Karma credited when you show up.',
+                desc: 'On-chain escrow locks. Tap confirm when you meet — funds release instantly.',
               },
             ].map((step, i) => (
               <div
