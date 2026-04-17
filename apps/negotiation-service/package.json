@@ -11,8 +11,10 @@
     "lint": "biome check src test"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.2",
+    "@bargo/crypto": "workspace:*",
     "@bargo/shared": "workspace:*",
+    "@fastify/cors": "^10.0.2",
+    "@noble/curves": "1.8.1",
     "better-sqlite3": "^11.9.1",
     "canonicalize": "^2.1.0",
     "dotenv": "^16.4.7",

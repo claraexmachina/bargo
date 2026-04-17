@@ -7,7 +7,7 @@
 //           — matches BargoEscrow.settleNegotiation's dealId derivation
 
 import { THROUGHPUT_LIMITS, postOfferRequestSchema } from '@bargo/shared';
-import type { DealId, KarmaTier, ListingId, OfferId } from '@bargo/shared';
+import type { DealId, EncryptedBlob, Hex, KarmaTier, ListingId, OfferId } from '@bargo/shared';
 import type Database from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
 import { encodePacked, keccak256 } from 'viem';
@@ -40,6 +40,7 @@ export async function offerRoutes(
     relayerPrivateKey: `0x${string}`;
     bargoEscrowAddress: `0x${string}`;
     attestationDir: string;
+    serviceDecryptSk: Hex;
   },
 ) {
   app.post('/offer', async (request, reply) => {
@@ -116,8 +117,7 @@ export async function offerRoutes(
       });
     }
 
-    // 6. Verify offerId exists on-chain (BLOCKER A1 fix)
-    //    offerId comes from buyer's on-chain submitOffer tx; service trusts the chain, not its own counter.
+    // 6. Verify offerId exists on-chain
     const offerId = body.offerId as OfferId;
     try {
       await verifyOfferOnChain(opts.chain.client, opts.chain.bargoEscrowAddress, offerId);
@@ -141,13 +141,13 @@ export async function offerRoutes(
     ) as DealId;
 
     // 8. Insert offer + create negotiation (state: queued)
+    // Enc blobs stored as-is — no plaintext ever written to DB.
     insertOffer(opts.db, {
       id: offerId,
       listingId: body.listingId as ListingId,
       buyer: body.buyer,
-      bidPrice: body.bidPrice,
-      plaintextMaxBuy: body.plaintextMaxBuy,
-      plaintextBuyerConditions: body.plaintextBuyerConditions,
+      encMaxBuy: body.encMaxBuy,
+      encBuyerConditions: body.encBuyerConditions,
       rlnNullifier: body.rlnProof.nullifier,
       rlnEpoch: body.rlnProof.epoch,
     });
@@ -167,7 +167,11 @@ export async function offerRoutes(
 
     const itemMeta = JSON.parse(listing.item_meta_json) as { title: string };
 
-    // 10. Acquire in-flight lock then fire-and-forget
+    // 10. Parse enc blobs from DB row (listing side)
+    const encMinSell = JSON.parse(listing.enc_min_sell_json) as EncryptedBlob;
+    const encSellerConditions = JSON.parse(listing.enc_seller_conditions_json) as EncryptedBlob;
+
+    // 11. Acquire in-flight lock then fire-and-forget
     _inFlightNegotiations.add(inflightKey);
     void fireNegotiation({
       db: opts.db,
@@ -175,12 +179,13 @@ export async function offerRoutes(
       listingId: body.listingId as ListingId,
       offerId,
       listingTitle: itemMeta.title,
-      sellerPlaintextMin: listing.plaintext_min_sell ?? '',
-      sellerPlaintextConditions: listing.plaintext_seller_conditions ?? '',
-      buyerPlaintextMax: body.plaintextMaxBuy,
-      buyerPlaintextConditions: body.plaintextBuyerConditions,
+      encMinSell,
+      encSellerConditions,
+      encMaxBuy: body.encMaxBuy,
+      encBuyerConditions: body.encBuyerConditions,
       sellerKarmaTier: sellerTier,
       buyerKarmaTier: buyerTier,
+      serviceDecryptSk: opts.serviceDecryptSk,
       nearAiApiKey: opts.nearAi.apiKey,
       nearAiBaseURL: opts.nearAi.baseURL,
       nearAiModel: opts.nearAi.model,
@@ -207,12 +212,13 @@ interface FireNegotiationParams {
   listingId: ListingId;
   offerId: OfferId;
   listingTitle: string;
-  sellerPlaintextMin: string;
-  sellerPlaintextConditions: string;
-  buyerPlaintextMax: string;
-  buyerPlaintextConditions: string;
+  encMinSell: EncryptedBlob;
+  encSellerConditions: EncryptedBlob;
+  encMaxBuy: EncryptedBlob;
+  encBuyerConditions: EncryptedBlob;
   sellerKarmaTier: KarmaTier;
   buyerKarmaTier: KarmaTier;
+  serviceDecryptSk: Hex;
   nearAiApiKey: string;
   nearAiBaseURL: string;
   nearAiModel: string;
@@ -234,12 +240,13 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
       listingId: p.listingId,
       offerId: p.offerId,
       listingTitle: p.listingTitle,
-      sellerPlaintextMin: p.sellerPlaintextMin,
-      sellerPlaintextConditions: p.sellerPlaintextConditions,
-      buyerPlaintextMax: p.buyerPlaintextMax,
-      buyerPlaintextConditions: p.buyerPlaintextConditions,
+      encMinSell: p.encMinSell,
+      encSellerConditions: p.encSellerConditions,
+      encMaxBuy: p.encMaxBuy,
+      encBuyerConditions: p.encBuyerConditions,
       sellerKarmaTier: p.sellerKarmaTier,
       buyerKarmaTier: p.buyerKarmaTier,
+      serviceDecryptSk: p.serviceDecryptSk,
       nearAiApiKey: p.nearAiApiKey,
       nearAiBaseURL: p.nearAiBaseURL,
       nearAiModel: p.nearAiModel,
@@ -257,7 +264,7 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
     const { attestation, bundle: _bundle, attestationBundlePath } = result;
 
     updateNegotiationAttestation(p.db, p.negotiationId, {
-      agreedConditionsHash: attestation.agreedConditionsHash, // distinct from nearAiAttestationHash
+      agreedConditionsHash: attestation.agreedConditionsHash,
       nearAiAttestationHash: attestation.nearAiAttestationHash,
       agreedConditionsJson: JSON.stringify(attestation.agreedConditions),
       modelId: attestation.modelId,
@@ -276,7 +283,7 @@ async function fireNegotiation(p: FireNegotiationParams): Promise<void> {
         listingId: p.listingId,
         offerId: p.offerId,
         agreedPriceWei: BigInt(attestation.agreedPrice),
-        agreedConditionsHash: attestation.agreedConditionsHash, // correct distinct field
+        agreedConditionsHash: attestation.agreedConditionsHash,
         nearAiAttestationHash: attestation.nearAiAttestationHash,
         relayerPrivateKey: p.relayerPrivateKey,
         rpcUrl: p.hoodiRpcUrl,

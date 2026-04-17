@@ -1,5 +1,6 @@
 // Watcher smoke test — mocks viem watchContractEvent, emits a fake FundsReleased log,
-// and asserts the negotiations row's plaintext columns are NULLed afterwards.
+// and asserts the negotiations row's state is updated to 'completed'.
+// V3: no plaintext columns exist; enc blobs are cryptographically safe to retain.
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -8,7 +9,7 @@ import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { createChainClient } from '../src/chain/read.js';
 import { startFundsReleasedWatcher } from '../src/chain/watcher.js';
-import { bufferToHex, hexToBuffer } from '../src/db/client.js';
+import { hexToBuffer } from '../src/db/client.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,14 @@ function buildDb(): Database.Database {
   return db;
 }
 
+// Minimal enc blob JSON for seeding
+const ENC_BLOB_JSON = JSON.stringify({
+  v: 1,
+  ephPub: `0x${'a0'.repeat(32)}`,
+  nonce: `0x${'b0'.repeat(24)}`,
+  ct: `0x${'c0'.repeat(4)}`,
+});
+
 // Minimal listing + offer + negotiation so foreign keys don't block.
 function seedNegotiation(
   db: Database.Database,
@@ -32,16 +41,23 @@ function seedNegotiation(
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(`
-    INSERT INTO listings (id, seller, ask_price, required_karma_tier, item_meta_json,
-      plaintext_min_sell, plaintext_seller_conditions, status, created_at)
-    VALUES (?, '0xseller', '1000', 0, '{}', '800', 'seller conds', 'open', ?)
-  `).run(hexToBuffer(listingId), now);
+    INSERT INTO listings (id, seller, required_karma_tier, item_meta_json,
+      enc_min_sell_json, enc_seller_conditions_json, status, created_at)
+    VALUES (?, '0xseller', 0, '{}', ?, ?, 'open', ?)
+  `).run(hexToBuffer(listingId), ENC_BLOB_JSON, ENC_BLOB_JSON, now);
 
   db.prepare(`
-    INSERT INTO offers (id, listing_id, buyer, bid_price, plaintext_max_buy,
-      plaintext_buyer_conditions, rln_nullifier, rln_epoch, status, created_at)
-    VALUES (?, ?, '0xbuyer', '900', '950', 'buyer conds', ?, 1, 'pending', ?)
-  `).run(hexToBuffer(offerId), hexToBuffer(listingId), hexToBuffer(`0x${'ee'.repeat(32)}`), now);
+    INSERT INTO offers (id, listing_id, buyer, enc_max_buy_json,
+      enc_buyer_conditions_json, rln_nullifier, rln_epoch, status, created_at)
+    VALUES (?, ?, '0xbuyer', ?, ?, ?, 1, 'pending', ?)
+  `).run(
+    hexToBuffer(offerId),
+    hexToBuffer(listingId),
+    ENC_BLOB_JSON,
+    ENC_BLOB_JSON,
+    hexToBuffer(`0x${'ee'.repeat(32)}`),
+    now,
+  );
 
   db.prepare(`
     INSERT INTO negotiations (id, listing_id, offer_id, state, created_at, updated_at)
@@ -58,18 +74,12 @@ describe('startFundsReleasedWatcher', () => {
     db = buildDb();
   });
 
-  it('sets negotiations state to completed and NULLs plaintext columns on FundsReleased', async () => {
+  it('sets negotiations state to completed on FundsReleased', async () => {
     const listingId = `0x${'aa'.repeat(32)}` as `0x${string}`;
     const offerId = `0x${'bb'.repeat(32)}` as `0x${string}`;
     const negotiationId = `0x${'cc'.repeat(32)}` as `0x${string}`;
 
     seedNegotiation(db, listingId, offerId, negotiationId);
-
-    // Verify plaintext is present before watcher fires
-    const beforeListing = db
-      .prepare('SELECT plaintext_min_sell FROM listings WHERE id = ?')
-      .get(hexToBuffer(listingId)) as { plaintext_min_sell: string | null };
-    expect(beforeListing.plaintext_min_sell).toBe('800');
 
     // Capture the onLogs callback registered by watchContractEvent
     let capturedOnLogs: ((logs: unknown[]) => void) | undefined;
@@ -118,24 +128,15 @@ describe('startFundsReleasedWatcher', () => {
       .get(hexToBuffer(negotiationId)) as { state: string };
     expect(neg.state).toBe('completed');
 
-    // Trigger should have NULLed plaintext columns on listing and offer
+    // V3: enc blobs are retained at rest (no purge needed — they're cryptographically sealed)
     const listing = db
-      .prepare('SELECT plaintext_min_sell, plaintext_seller_conditions FROM listings WHERE id = ?')
+      .prepare('SELECT enc_min_sell_json, enc_seller_conditions_json FROM listings WHERE id = ?')
       .get(hexToBuffer(listingId)) as {
-      plaintext_min_sell: string | null;
-      plaintext_seller_conditions: string | null;
+      enc_min_sell_json: string;
+      enc_seller_conditions_json: string;
     };
-    expect(listing.plaintext_min_sell).toBeNull();
-    expect(listing.plaintext_seller_conditions).toBeNull();
-
-    const offer = db
-      .prepare('SELECT plaintext_max_buy, plaintext_buyer_conditions FROM offers WHERE id = ?')
-      .get(hexToBuffer(offerId)) as {
-      plaintext_max_buy: string | null;
-      plaintext_buyer_conditions: string | null;
-    };
-    expect(offer.plaintext_max_buy).toBeNull();
-    expect(offer.plaintext_buyer_conditions).toBeNull();
+    expect(listing.enc_min_sell_json).toBeTruthy();
+    expect(listing.enc_seller_conditions_json).toBeTruthy();
   });
 
   it('logs warn and continues when dealId is missing from log args', () => {

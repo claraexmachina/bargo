@@ -1,6 +1,6 @@
 // POST /listing
-// Registers a new listing with plaintext reservation data (V2 — no encryption).
-// GET /listings + GET /listing/:id return public fields only (plaintext reservation never exposed).
+// Registers a new listing with encrypted reservation blobs (V3 — sealed-bid).
+// GET /listings + GET /listing/:id return public fields only — no prices, no enc blobs.
 //
 // listingId: provided by caller (on-chain id from seller's registerListing tx).
 
@@ -11,7 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import { bufferToHex, getListingById, insertListing, listOpenListings } from '../db/client.js';
 
 export async function listingRoutes(app: FastifyInstance, opts: { db: Database.Database }) {
-  // GET /listings — public listing feed. Plaintext reservation columns never returned.
+  // GET /listings — public listing feed. Enc blobs never returned.
   app.get('/listings', async (request, reply) => {
     const q = request.query as { limit?: string; offset?: string };
     const limit = Math.min(Math.max(Number(q.limit ?? 50), 1), 100);
@@ -22,7 +22,6 @@ export async function listingRoutes(app: FastifyInstance, opts: { db: Database.D
       listings: rows.map((row) => ({
         id: bufferToHex(row.id),
         seller: row.seller,
-        askPrice: row.ask_price,
         requiredKarmaTier: row.required_karma_tier as KarmaTier,
         itemMeta: JSON.parse(row.item_meta_json) as ListingMeta,
         status: row.status,
@@ -40,7 +39,6 @@ export async function listingRoutes(app: FastifyInstance, opts: { db: Database.D
     return reply.send({
       id: bufferToHex(row.id),
       seller: row.seller,
-      askPrice: row.ask_price,
       requiredKarmaTier: row.required_karma_tier as KarmaTier,
       itemMeta: JSON.parse(row.item_meta_json) as ListingMeta,
       status: row.status,
@@ -62,17 +60,16 @@ export async function listingRoutes(app: FastifyInstance, opts: { db: Database.D
     const body = result.data;
 
     // listingId is the on-chain id produced by the seller's registerListing tx.
-    // The service stores it as-is and does not derive it independently.
     const listingId = body.listingId as ListingId;
 
+    // Store enc blobs as-is — never decrypt in this route.
     insertListing(opts.db, {
       id: listingId,
       seller: body.seller,
-      askPrice: body.askPrice,
       requiredKarmaTier: body.requiredKarmaTier,
       itemMetaJson: JSON.stringify(body.itemMeta),
-      plaintextMinSell: body.plaintextMinSell,
-      plaintextSellerConditions: body.plaintextSellerConditions,
+      encMinSell: body.encMinSell,
+      encSellerConditions: body.encSellerConditions,
     });
 
     app.log.info({ listingId, seller: body.seller }, 'listing registered');

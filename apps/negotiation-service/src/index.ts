@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import cors from '@fastify/cors';
+import { x25519 } from '@noble/curves/ed25519';
 import Fastify from 'fastify';
 import { createChainClient } from './chain/read.js';
 import { startFundsReleasedWatcher } from './chain/watcher.js';
@@ -10,26 +11,43 @@ import { closeDb, getDb } from './db/client.js';
 import { runStartupAttestationCheck } from './nearai/attestation.js';
 import { registerRoutes } from './routes/index.js';
 
+// Derive service pubkey once at startup from the private key.
+// SK never leaves this module — only pubkey is published.
+function _skToBytes(hex: `0x${string}`): Uint8Array {
+  const raw = hex.slice(2);
+  const bytes = new Uint8Array(raw.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(raw.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+function _bytesToHex(bytes: Uint8Array): `0x${string}` {
+  let s = '';
+  for (const b of bytes) s += b.toString(16).padStart(2, '0');
+  return `0x${s}`;
+}
+
+const servicePubkey = _bytesToHex(x25519.getPublicKey(_skToBytes(config.serviceDecryptSk)));
+
 const app = Fastify({
   logger: {
     level: 'info',
-    // Redact plaintext reservation values from all log output (PLAN_V2 §4 threat model).
-    // Root-level paths catch log.info(body, ...) where body IS the logged object.
-    // Wildcard paths catch log.info({ req: body }, ...) at any nesting depth.
+    // Redact enc blob ciphertexts from log output (already opaque, but kept small).
+    // Plaintext reservation fields no longer exist — old redact paths removed.
     redact: {
       paths: [
-        'plaintextMinSell',
-        'plaintextMaxBuy',
-        'plaintextSellerConditions',
-        'plaintextBuyerConditions',
-        '*.plaintextMinSell',
-        '*.plaintextMaxBuy',
-        '*.plaintextSellerConditions',
-        '*.plaintextBuyerConditions',
-        'req.body.plaintextMinSell',
-        'req.body.plaintextMaxBuy',
-        'req.body.plaintextSellerConditions',
-        'req.body.plaintextBuyerConditions',
+        'encMinSell.ct',
+        'encMaxBuy.ct',
+        'encSellerConditions.ct',
+        'encBuyerConditions.ct',
+        '*.encMinSell.ct',
+        '*.encMaxBuy.ct',
+        '*.encSellerConditions.ct',
+        '*.encBuyerConditions.ct',
+        'req.body.encMinSell.ct',
+        'req.body.encMaxBuy.ct',
+        'req.body.encSellerConditions.ct',
+        'req.body.encBuyerConditions.ct',
       ],
       censor: '[REDACTED]',
     },
@@ -44,8 +62,7 @@ async function bootstrap() {
   const db = getDb(config.dbPath);
   const chainClient = createChainClient(config.hoodiRpcUrl);
 
-  // MEDIUM A6: Crash recovery — mark stuck negotiations as failed on startup.
-  // Covers negotiations that were 'queued' or 'running' when the process died.
+  // Crash recovery — mark stuck negotiations as failed on startup.
   const stuckTimeout = 120; // seconds
   db.exec(`
     UPDATE negotiations
@@ -72,12 +89,13 @@ async function bootstrap() {
     relayerPrivateKey: config.relayerPrivateKey,
     bargoEscrowAddress: config.bargoEscrowAddress,
     attestationDir: config.attestationDir,
+    serviceDecryptSk: config.serviceDecryptSk,
+    servicePubkey,
   });
 
   const address = await app.listen({ port: config.port, host: '0.0.0.0' });
-  app.log.info({ address, model: config.nearAi.model }, 'negotiation-service started');
+  app.log.info({ address, model: config.nearAi.model, servicePubkey }, 'negotiation-service started');
 
-  // BLOCKER A2: Start FundsReleased watcher so auto-purge trigger fires on deal completion.
   const unwatchFundsReleased = startFundsReleasedWatcher(
     chainClient,
     config.bargoEscrowAddress,
@@ -86,8 +104,6 @@ async function bootstrap() {
   );
   app.log.info('FundsReleased watcher started');
 
-  // HIGH A4: Gate startup attestation check behind env flag (default off) to avoid
-  // consuming NEAR AI quota on every cold start / CI run.
   if (process.env.NEAR_AI_STARTUP_CHECK === 'true') {
     await runStartupAttestationCheck({
       model: config.nearAi.model,
@@ -104,7 +120,6 @@ async function bootstrap() {
     );
   }
 
-  // Return cleanup handle for shutdown
   return unwatchFundsReleased;
 }
 

@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DealId, KarmaTier, ListingId, NearAiAttestation, OfferId } from '@bargo/shared';
+import type {
+  DealId,
+  EncryptedBlob,
+  KarmaTier,
+  ListingId,
+  NearAiAttestation,
+  OfferId,
+} from '@bargo/shared';
 import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -11,11 +18,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export interface ListingRow {
   id: Buffer;
   seller: string;
-  ask_price: string;
   required_karma_tier: number;
   item_meta_json: string;
-  plaintext_min_sell: string | null;
-  plaintext_seller_conditions: string | null;
+  enc_min_sell_json: string;
+  enc_seller_conditions_json: string;
   status: string;
   onchain_tx_hash: string | null;
   created_at: number;
@@ -25,9 +31,8 @@ export interface OfferRow {
   id: Buffer;
   listing_id: Buffer;
   buyer: string;
-  bid_price: string;
-  plaintext_max_buy: string | null;
-  plaintext_buyer_conditions: string | null;
+  enc_max_buy_json: string;
+  enc_buyer_conditions_json: string;
   rln_nullifier: Buffer;
   rln_epoch: number;
   status: string;
@@ -92,28 +97,26 @@ export function bufferToHex(buf: Buffer): `0x${string}` {
 export interface InsertListingParams {
   id: ListingId;
   seller: string;
-  askPrice: string;
   requiredKarmaTier: KarmaTier;
   itemMetaJson: string;
-  plaintextMinSell: string;
-  plaintextSellerConditions: string;
+  encMinSell: EncryptedBlob;
+  encSellerConditions: EncryptedBlob;
 }
 
 export function insertListing(db: Database.Database, params: InsertListingParams): void {
-  const stmt = db.prepare<[Buffer, string, string, number, string, string, string, number]>(`
+  const stmt = db.prepare<[Buffer, string, number, string, string, string, number]>(`
     INSERT INTO listings
-      (id, seller, ask_price, required_karma_tier, item_meta_json,
-       plaintext_min_sell, plaintext_seller_conditions, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)
+      (id, seller, required_karma_tier, item_meta_json,
+       enc_min_sell_json, enc_seller_conditions_json, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'open', ?)
   `);
   stmt.run(
     hexToBuffer(params.id),
     params.seller,
-    params.askPrice,
     params.requiredKarmaTier,
     params.itemMetaJson,
-    params.plaintextMinSell,
-    params.plaintextSellerConditions,
+    JSON.stringify(params.encMinSell),
+    JSON.stringify(params.encSellerConditions),
     Math.floor(Date.now() / 1000),
   );
 }
@@ -156,29 +159,25 @@ export interface InsertOfferParams {
   id: OfferId;
   listingId: ListingId;
   buyer: string;
-  bidPrice: string;
-  plaintextMaxBuy: string;
-  plaintextBuyerConditions: string;
+  encMaxBuy: EncryptedBlob;
+  encBuyerConditions: EncryptedBlob;
   rlnNullifier: `0x${string}`;
   rlnEpoch: number;
 }
 
 export function insertOffer(db: Database.Database, params: InsertOfferParams): void {
-  const stmt = db.prepare<
-    [Buffer, Buffer, string, string, string, string, Buffer, number, number]
-  >(`
+  const stmt = db.prepare<[Buffer, Buffer, string, string, string, Buffer, number, number]>(`
     INSERT INTO offers
-      (id, listing_id, buyer, bid_price, plaintext_max_buy, plaintext_buyer_conditions,
+      (id, listing_id, buyer, enc_max_buy_json, enc_buyer_conditions_json,
        rln_nullifier, rln_epoch, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
   `);
   stmt.run(
     hexToBuffer(params.id),
     hexToBuffer(params.listingId),
     params.buyer,
-    params.bidPrice,
-    params.plaintextMaxBuy,
-    params.plaintextBuyerConditions,
+    JSON.stringify(params.encMaxBuy),
+    JSON.stringify(params.encBuyerConditions),
     hexToBuffer(params.rlnNullifier),
     params.rlnEpoch,
     Math.floor(Date.now() / 1000),
