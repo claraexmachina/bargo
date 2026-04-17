@@ -173,6 +173,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))
 
+  packages/crypto:
+    dependencies:
+      '@bargo/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@noble/ciphers':
+        specifier: 1.2.1
+        version: 1.2.1
+      '@noble/curves':
+        specifier: 1.8.1
+        version: 1.8.1
+      '@noble/hashes':
+        specifier: 1.7.2
+        version: 1.7.2
+    devDependencies:
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+
   packages/shared:
     dependencies:
       viem:

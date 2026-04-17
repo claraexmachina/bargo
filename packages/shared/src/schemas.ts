@@ -29,24 +29,28 @@ const rlnProofSchema = z.object({
   rlnIdentityCommitment: hexSchema,
 });
 
+// Encryption envelope — sealed to service pubkey at the API boundary.
+const encryptedBlobSchema = z.object({
+  v: z.literal(1),
+  ephPub: hexSchema,
+  nonce: hexSchema,
+  ct: hexSchema,
+});
+
 const agreedConditionsSchema = z.object({
   location: z.string().min(1).max(200),
   meetTimeIso: z.string().min(1),
   payment: z.enum(['cash', 'card', 'transfer', 'crypto']),
 });
 
-// Upper bound aligned with PLAN_V2 §3.1 (plaintext conditions max 2KB).
-const PLAINTEXT_CONDITIONS_MAX = 2048;
-
-// POST /listing — seller submits listingId + on-chain tx hash after registerListing
+// POST /listing — sealed-bid. No public ask price anywhere.
 export const postListingRequestSchema = z.object({
   listingId: listingIdSchema,
   seller: addressSchema,
-  askPrice: z.string().regex(/^\d+$/, 'askPrice must be a decimal wei string'),
   requiredKarmaTier: karmaTierSchema,
   itemMeta: listingMetaSchema,
-  plaintextMinSell: z.string().regex(/^\d+$/, 'plaintextMinSell must be a decimal wei string'),
-  plaintextSellerConditions: z.string().trim().max(PLAINTEXT_CONDITIONS_MAX),
+  encMinSell: encryptedBlobSchema,
+  encSellerConditions: encryptedBlobSchema,
   onchainTxHash: hexSchema,
 });
 export type PostListingRequestParsed = z.infer<typeof postListingRequestSchema>;
@@ -57,18 +61,24 @@ export const postListingResponseSchema = z.object({
 });
 export type PostListingResponseParsed = z.infer<typeof postListingResponseSchema>;
 
-// POST /offer — buyer submits offerId + on-chain tx hash after submitOffer
+// POST /offer — sealed-bid. No public bid price.
 export const postOfferRequestSchema = z.object({
   offerId: offerIdSchema,
   buyer: addressSchema,
   listingId: listingIdSchema,
-  bidPrice: z.string().regex(/^\d+$/, 'bidPrice must be a decimal wei string'),
-  plaintextMaxBuy: z.string().regex(/^\d+$/, 'plaintextMaxBuy must be a decimal wei string'),
-  plaintextBuyerConditions: z.string().trim().max(PLAINTEXT_CONDITIONS_MAX),
+  encMaxBuy: encryptedBlobSchema,
+  encBuyerConditions: encryptedBlobSchema,
   rlnProof: rlnProofSchema,
   onchainTxHash: hexSchema,
 });
 export type PostOfferRequestParsed = z.infer<typeof postOfferRequestSchema>;
+
+// GET /service-pubkey — fetched by clients before sealing reservation data.
+export const getServicePubkeyResponseSchema = z.object({
+  pubkey: hexSchema,
+  issuedAt: z.number().int().positive(),
+});
+export type GetServicePubkeyResponseParsed = z.infer<typeof getServicePubkeyResponseSchema>;
 
 export const postOfferResponseSchema = z.object({
   offerId: offerIdSchema,
