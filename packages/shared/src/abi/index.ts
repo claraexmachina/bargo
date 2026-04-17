@@ -3,4 +3,4 @@
 
 export { haggleEscrowAbi } from './HaggleEscrow.js';
 export { karmaReaderAbi } from './KarmaReader.js';
-export { rlnVerifierAbi } from './RLNVerifier.js';
+export { rLNVerifierAbi as rlnVerifierAbi } from './RLNVerifier.js';
