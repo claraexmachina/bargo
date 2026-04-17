@@ -7,6 +7,7 @@ import { useAttestationBundle } from '@/lib/api';
 
 interface AttestationViewerProps {
   attestation: NearAiAttestation | undefined;
+  onchainTxHash?: string | undefined;
 }
 
 function truncateHex(hex: string, chars = 8): string {
@@ -62,12 +63,14 @@ function AttestationBundleExpando({ dealId }: { dealId: DealId }) {
   );
 }
 
-export function AttestationViewer({ attestation }: AttestationViewerProps) {
+export function AttestationViewer({ attestation, onchainTxHash }: AttestationViewerProps) {
   if (!attestation) return null;
 
   const { dealId, modelId, completionId, nearAiAttestationHash } = attestation;
 
-  const hoodiUrl = `https://explorer.hoodi.network/search?q=${nearAiAttestationHash}`;
+  const hoodiUrl = onchainTxHash
+    ? `https://hoodiscan.status.network/tx/${onchainTxHash}`
+    : `https://hoodiscan.status.network/search?q=${nearAiAttestationHash}`;
 
   function handleCopyVerifyScript() {
     const cmd = `node scripts/verify-attestation.mjs --dealId ${dealId}`;
@@ -137,7 +140,7 @@ export function AttestationViewer({ attestation }: AttestationViewerProps) {
           심사위원용 검증 스크립트 복사
         </button>
         <a
-          href="https://github.com/haggle-app/haggle#attestation-verification"
+          href="https://github.com/claraexmachina/haggle#attestation-verification"
           target="_blank"
           rel="noopener noreferrer"
           className="text-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"

@@ -9,6 +9,7 @@ import type {
   DealId,
   GetStatusResponse,
   ListingId,
+  ListingPublic,
   NearAiAttestationBundle,
   PostListingRequest,
   PostListingResponse,
@@ -51,21 +52,8 @@ export function usePostListing() {
   });
 }
 
-export async function fetchListing(listingId: ListingId) {
-  return fetchJSON<{
-    id: ListingId;
-    seller: `0x${string}`;
-    askPrice: string;
-    requiredKarmaTier: 0 | 1 | 2 | 3;
-    itemMeta: {
-      title: string;
-      description: string;
-      category: string;
-      images: string[];
-    };
-    status: string;
-    createdAt: number;
-  }>(`/listing/${listingId}`);
+export async function fetchListing(listingId: ListingId): Promise<ListingPublic> {
+  return fetchJSON<ListingPublic>(`/listing/${listingId}`);
 }
 
 export function useListing(listingId: ListingId | null) {

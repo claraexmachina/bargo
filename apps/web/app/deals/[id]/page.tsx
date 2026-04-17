@@ -33,6 +33,7 @@ export default function DealPage() {
   const [escrowLocked, setEscrowLocked] = React.useState(false);
   const [meetupComplete, setMeetupComplete] = React.useState(false);
   const [myQrSignature, setMyQrSignature] = React.useState<Hex | null>(null);
+  // Track terminal state separately so we can use it in refetchInterval without a forward ref
   const [isTerminal, setIsTerminal] = React.useState(false);
 
   const {
@@ -44,16 +45,11 @@ export default function DealPage() {
     refetchInterval: !escrowLocked && !isTerminal ? 1000 : false,
   });
 
-  // Track terminal state in effect to avoid using status before declaration
-  React.useEffect(() => {
-    if (
-      status?.state === 'agreement' ||
-      status?.state === 'fail' ||
-      status?.state === 'settled'
-    ) {
-      setIsTerminal(true);
-    }
-  }, [status?.state]);
+  // Derive terminal state inline to avoid the useEffect race
+  const terminalState = status?.state === 'agreement' || status?.state === 'fail' || status?.state === 'settled';
+  if (terminalState && !isTerminal) {
+    setIsTerminal(true);
+  }
 
   // Sign meetup QR when escrow is locked
   async function handleSignMeetupQR() {
@@ -91,7 +87,6 @@ export default function DealPage() {
     try {
       const parsed = JSON.parse(payload) as { dealId: string; signature: string };
       if (parsed.dealId === dealId) {
-        setIsTerminal(true);
         toast.success('상대방 QR 확인 완료! 거래 완료 처리 중...');
         // In production: submit confirmMeetup tx with both signatures
         setTimeout(() => {
@@ -170,8 +165,6 @@ export default function DealPage() {
               router.push(dest);
             }}
             onLockEscrow={handleLockEscrow}
-            listingId={retryListingId}
-            previousBid={retryBid}
           />
         </CardContent>
       </Card>

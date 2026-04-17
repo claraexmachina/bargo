@@ -2,9 +2,11 @@
 
 import * as React from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
+import { parseEventLogs } from 'viem';
 import { toast } from 'sonner';
-import type { ListingId } from '@haggle/shared';
+import type { ListingId, Hex } from '@haggle/shared';
+import { haggleEscrowAbi, ADDRESSES } from '@haggle/shared';
 import { WalletConnect } from '@/components/WalletConnect';
 import { UserKarma } from '@/components/UserKarma';
 import { ConditionInput } from '@/components/ConditionInput';
@@ -15,12 +17,16 @@ import { useListing, usePostOffer } from '@/lib/api';
 import { buildRLNProof } from '@/lib/rln';
 import { krwToWei, formatKRW } from '@/lib/format';
 
+const HOODI_CHAIN_ID = 374;
+
 export default function NewOfferPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const listingId = params['listingId'] as ListingId;
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
 
   const { data: listing } = useListing(listingId);
   const postOffer = usePostOffer();
@@ -31,6 +37,9 @@ export default function NewOfferPage() {
   const [maxPriceKrw, setMaxPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitStep, setSubmitStep] = React.useState<'idle' | 'onchain' | 'service'>('idle');
+
+  const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.haggleEscrow;
 
   const canSubmit =
     isConnected &&
@@ -44,8 +53,9 @@ export default function NewOfferPage() {
     if (!canSubmit || !address) return;
 
     setIsSubmitting(true);
+    setSubmitStep('onchain');
 
-    // Capture sensitive values to locals and clear state BEFORE POST.
+    // Capture sensitive values to locals and clear state BEFORE submission.
     // This prevents plaintext lingering in React state on error.
     const rawMax = maxPriceKrw;
     const rawCond = conditions;
@@ -64,13 +74,50 @@ export default function NewOfferPage() {
         walletAddress: address,
       });
 
+      if (!escrowAddress) {
+        throw new Error('컨트랙트 주소가 설정되지 않았습니다. docs/deployments.md를 확인하세요.');
+      }
+
+      // Step 1: On-chain submitOffer
+      toast.info('지갑에서 트랜잭션을 승인하세요...');
+      const rlnProofBytes = rlnProof.proof as Hex;
+      const txHash = await writeContractAsync({
+        address: escrowAddress,
+        abi: haggleEscrowAbi,
+        functionName: 'submitOffer',
+        args: [listingId, bidPriceBigInt, rlnProofBytes],
+      });
+
+      toast.info('트랜잭션 확인 중...');
+
+      // Step 2: Wait for receipt + parse OfferSubmitted event
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
+
+      const logs = parseEventLogs({
+        abi: haggleEscrowAbi,
+        eventName: 'OfferSubmitted',
+        logs: receipt.logs,
+      });
+
+      const firstLog = logs[0];
+      if (!firstLog) {
+        throw new Error('OfferSubmitted 이벤트를 찾을 수 없습니다. 트랜잭션을 확인해주세요.');
+      }
+
+      const offerId = (firstLog.args as { offerId: Hex }).offerId;
+      toast.success('온체인 오퍼 등록 완료!');
+
+      // Step 3: POST to negotiation service
+      setSubmitStep('service');
       const result = await postOffer.mutateAsync({
+        offerId,
         buyer: address,
         listingId,
         bidPrice: bidPriceWei,
         plaintextMaxBuy: maxPriceWei,
         plaintextBuyerConditions: rawCond.trim().slice(0, 2048),
         rlnProof,
+        onchainTxHash: txHash,
       });
 
       toast.success('오퍼가 제출되었습니다! 협상을 시작합니다...');
@@ -80,16 +127,28 @@ export default function NewOfferPage() {
       if (process.env.NODE_ENV === 'development') {
         console.error('[offers/new] submit error:', err);
       }
-      if (msg.includes('karma') || msg.includes('403')) {
+      if (msg.includes('User rejected') || msg.includes('user rejected')) {
+        toast.error('트랜잭션이 취소되었습니다.');
+      } else if (msg.includes('컨트랙트 주소')) {
+        toast.error(msg);
+      } else if (msg.includes('karma') || msg.includes('403') || msg.includes('KarmaTier')) {
         toast.error('Karma 티어가 부족합니다. 이 매물에 오퍼할 수 없습니다.');
-      } else if (msg.includes('rln') || msg.includes('nullifier')) {
+      } else if (msg.includes('rln') || msg.includes('nullifier') || msg.includes('RLN')) {
         toast.error('RLN 검증 실패 — 이 매물에 너무 많은 오퍼를 제출했습니다.');
       } else {
         toast.error('오퍼 제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
       }
     } finally {
       setIsSubmitting(false);
+      setSubmitStep('idle');
     }
+  }
+
+  function submitLabel() {
+    if (!isSubmitting) return '오퍼 제출';
+    if (submitStep === 'onchain') return '온체인 등록 중...';
+    if (submitStep === 'service') return '서비스 등록 중...';
+    return '제출 중...';
   }
 
   if (!isConnected) {
@@ -122,6 +181,14 @@ export default function NewOfferPage() {
         </div>
         <WalletConnect />
       </div>
+
+      {chainId !== HOODI_CHAIN_ID && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            Hoodi 네트워크 (chainId {HOODI_CHAIN_ID})로 전환해주세요.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Bid price */}
@@ -156,8 +223,7 @@ export default function NewOfferPage() {
                 label="최대 구매가 (원)"
               />
               <p className="text-sm text-muted-foreground">
-                이 가격은 <strong>NEAR AI TEE 안에서만 LLM에 전달</strong>됩니다.
-                상대방은 볼 수 없고, 서비스는 거래 완료 후 자동 삭제합니다.
+                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수 없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
               </p>
             </div>
           </CardContent>
@@ -193,7 +259,7 @@ export default function NewOfferPage() {
             취소
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1" size="lg">
-            {isSubmitting ? '제출 중...' : '오퍼 제출'}
+            {submitLabel()}
           </Button>
         </div>
       </form>

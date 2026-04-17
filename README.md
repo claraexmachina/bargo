@@ -1,94 +1,144 @@
 # Haggle
 
-> TEE-mediated P2P negotiation — agents negotiate price and meetup conditions so you don't have to.
+> NEAR AI TEE × Status Network — P2P 중고거래 협상 자동화
 
-**Status: demo-ready (hackathon).** All unit + integration tests green (122). Contracts + service + web + TEE wired end-to-end against a mock TEE. Real TEE and on-chain deploy pending a private key.
+**Status: V2 demo-ready (NEAR AI TEE + Status Network Hoodi gasless)**
 
-- [PRD](./PRD.md) — problem statement, user stories, demo scenario (§2.12)
-- [PLAN](./PLAN.md) — architecture, shared types, file ownership, phase gates
-- [UX review](./docs/ux-review.md) — mobile + privacy audit (all blockers resolved)
-- [QA report](./docs/qa-report.md) — 119 tests + 10 scenarios + privacy grep
-- [Deployment guide](./docs/deployments.md) — Hoodi (374) + TEE signer whitelist
+AI 봇이 양측 reservation price·자연어 조건을 비공개로 협상합니다. 협상은 NEAR AI Cloud (Intel TDX + NVIDIA GPU TEE) 안에서 이루어지며 심사위원이 직접 검증할 수 있습니다.
+
+- [PRD](./PRD.md) — 문제 정의, 유저 스토리, 데모 시나리오 (§2.12)
+- [PLAN_V2.md](./PLAN_V2.md) — V2 아키텍처, 공유 타입, 파일 소유권, 단계 게이트
+- [Threat model](./docs/threat-model.md) — V2 정직한 신뢰 모델 (10행 위협 테이블)
+- [Attestation verification](./docs/attestation-verification.md) — 심사위원 검증 가이드
+
+## Architecture
+
+```
+Web (Next.js PWA) ──► Negotiation Service (Fastify + SQLite)
+                              │
+                    ┌─────────▼─────────────────────────┐
+                    │  NEAR AI Cloud (Intel TDX + GPU)  │
+                    │  qwen3-30b LLM, /v1/attestation   │
+                    └─────────┬─────────────────────────┘
+                              │ nearAiAttestationHash
+                    ┌─────────▼─────────────────────────┐
+                    │  Relayer (chain/relayer.ts)        │
+                    │  settleNegotiation() → Hoodi       │
+                    └─────────┬─────────────────────────┘
+                              │
+                    ┌─────────▼─────────────────────────┐
+                    │  Status Network Hoodi              │
+                    │  HaggleEscrow, KarmaReader,        │
+                    │  RLNVerifier                       │
+                    └────────────────────────────────────┘
+```
+
+**신뢰 모델 요약**: 운영자는 협상 ~15초간 plaintext를 보며, 거래 완료 즉시 DB에서 자동 삭제됩니다. NEAR AI TEE의 LLM 추론은 심사위원이 `verify-attestation.mjs`로 독립 검증 가능합니다.
 
 ## Quick start
 
 ```bash
-# Prerequisites: pnpm 9, Node 20+, Foundry, Python 3.12, uv
+# Prerequisites: pnpm 9, Node 20+, Foundry
 pnpm install
-cp .env.example .env.local   # fill in your values
+cp .env.example .env.local   # 아래 환경변수 참고
 ```
 
-Run the full stack locally with the mock TEE:
-
 ```bash
-# Terminal 1 — service with mock TEE
-cd apps/negotiation-service && MOCK_TEE=1 pnpm dev
+# Terminal 1 — negotiation service (NEAR AI API key 필요)
+cd apps/negotiation-service && pnpm dev
 
 # Terminal 2 — web
 cd apps/web && pnpm dev
 ```
 
-Open http://localhost:3000 → connect wallet (Hoodi chainId 374) → list a 맥북 → offer from a second browser profile → watch the bot-vs-bot negotiation resolve.
+Open http://localhost:3000 → 지갑 연결 (Hoodi chainId 374) → 매물 등록 → 오퍼 제출 → 봇 vs 봇 협상 → 합의 결과 확인
 
-### Per-package commands
+## Environment variables
+
+```bash
+# NEAR AI
+NEAR_AI_API_KEY=your_near_ai_api_key
+NEAR_AI_MODEL=qwen3-30b              # default
+
+# Relayer (service signs+sends settleNegotiation tx)
+RELAYER_PRIVATE_KEY=0x...
+ATTESTATION_RELAYER_ADDRESS=0x...    # derived from RELAYER_PRIVATE_KEY
+
+# Contracts (Hoodi chain 374)
+HAGGLE_ESCROW_ADDRESS=0x...
+KARMA_READER_ADDRESS=0x...
+RLN_VERIFIER_ADDRESS=0x...
+
+# Web
+NEXT_PUBLIC_NEGOTIATION_SERVICE_URL=http://localhost:3001
+NEXT_PUBLIC_RPC_URL=https://public.hoodi.rpc.status.network
+
+# Verifier (off-chain attestation check by judges)
+HOODI_RPC=https://public.hoodi.rpc.status.network
+NEAR_AI_MR_TD=<pinned TDX measurement from NEAR AI docs>
+NVIDIA_NRAS_URL=https://nras.attestation.nvidia.com/v3/attest/gpu
+```
+
+## Per-package commands
 
 | Package / App | Command |
 |---|---|
 | `packages/shared` | `pnpm -C packages/shared typecheck` |
-| `packages/crypto` | `pnpm -C packages/crypto test` |
 | `apps/web` | `pnpm -C apps/web dev` |
 | `apps/negotiation-service` | `pnpm -C apps/negotiation-service dev` |
 | `contracts` | `cd contracts && forge test` |
-| `services/tee` | `cd services/tee && uv run uvicorn haggle_tee.server:app --reload` |
 
-### Full test suite
+## Full test suite
 
 ```bash
 pnpm -r typecheck          # 0 errors across all TS
-pnpm -r test               # 52 TS tests (crypto 5 + service 25 + web 22)
+pnpm -C apps/web test      # 28 web tests
+pnpm -C apps/negotiation-service test  # 34 service tests
 cd contracts && forge test # 34 Solidity tests
-cd services/tee && .venv/bin/python -m pytest  # 36 Python tests
+node scripts/verify-attestation.mjs --file scripts/fixtures/sample-attestation.json  # verifier smoke test
+# Total: ~100 tests
 ```
 
-## Demo-day checklist
+## Demo-day checklist (V2)
 
 Before the 2-phone live demo:
 
-1. **Deploy contracts to Hoodi** — set `DEPLOYER_PRIVATE_KEY` and `ENCLAVE_SIGNER_ADDRESS` in env, then:
+1. **Deploy contracts to Hoodi** — set `DEPLOYER_PRIVATE_KEY` in env:
    ```bash
    cd contracts
-   forge script script/Deploy.s.sol --rpc-url https://public.hoodi.rpc.status.network --broadcast --private-key $DEPLOYER_PRIVATE_KEY
-   forge script script/Seed.s.sol   --rpc-url https://public.hoodi.rpc.status.network --broadcast --private-key $DEPLOYER_PRIVATE_KEY
+   forge script script/Deploy.s.sol \
+     --rpc-url https://public.hoodi.rpc.status.network \
+     --broadcast --private-key $DEPLOYER_PRIVATE_KEY
    ```
-   Copy the printed addresses into `packages/shared/src/addresses.ts` and `docs/deployments.md`.
-2. **Deploy TEE** (NEAR AI Cloud) — see `services/tee/README.md`. Inject `TEE_SIGNER_PK` inside the enclave; publish the derived address so contract-lead can call `addEnclaveSigner`.
-3. **Update demo wallets** — Seed.s.sol seeds Alice/Bob/Eve Karma tiers. Use the same wallets on both phones during filming.
-4. **Rehearse twice**: once for timing, once for camera framing. Verify both phones show the 5-second condition-mismatch → retry → agreement flow (PRD §2.12).
-5. **Close all DevTools on demo phones** — reservation prices are masked in UI but visible in React DevTools until the form submits.
-6. **Prep backup video** — record a real run in advance; play it if stage Wi-Fi fails.
+   Copy printed addresses into `packages/shared/src/addresses.ts` and `docs/deployments.md`.
 
-## Architecture
+2. **Fund relayer wallet** — the `RELAYER_PRIVATE_KEY` address needs Hoodi ETH to call `settleNegotiation`. Use the Hoodi faucet.
 
+3. **Set NEAR AI API key** — obtain from [near.ai](https://near.ai). Test with:
+   ```bash
+   curl https://cloud-api.near.ai/v1/models \
+     -H "Authorization: Bearer $NEAR_AI_API_KEY"
+   ```
+
+4. **Rehearse twice with 2 phones** — seller lists, buyer offers, watch negotiation resolve in ≤15s, verify `AttestationViewer` shows hash + explorer link.
+
+5. **Judge verifier path** — hand `verify-attestation.mjs` to a teammate. They should be able to verify a settled deal in ≤2 min:
+   ```bash
+   node scripts/verify-attestation.mjs --dealId 0x<settled-deal-id>
+   ```
+
+6. **Close DevTools on demo phones** — reservation prices are masked in UI but visible in React DevTools before form submits.
+
+7. **Prep backup video** — record a full run; play if stage Wi-Fi fails.
+
+## Attestation verification (for judges)
+
+```bash
+node scripts/verify-attestation.mjs --dealId 0x<bytes32-deal-id>
+# Or with a local file:
+node scripts/verify-attestation.mjs --file ./attestation.json
 ```
-Web (Next.js PWA) ──┬─► Negotiation Service (Fastify + SQLite) ─► TEE (NEAR AI Cloud, Python)
-                    │                                               │
-                    └─► Status Network Hoodi ◄──────────────────────┘
-                        (HaggleEscrow, KarmaReader, RLNVerifier)
-```
 
-- Reservation prices and raw natural-language conditions are sealed client-side (X25519 + XChaCha20-Poly1305) with TEE's pubkey.
-- TEE runs an LLM (NEAR AI Cloud Llama 3.1) to parse conditions, matches them, computes ZOPA price weighted by Karma tier, and signs an EIP-712 attestation with a secp256k1 key.
-- `HaggleEscrow.settleNegotiation` verifies the signature + enclave whitelist + attestation hash before accepting the deal.
-- Karma tier throughput + high-value gating + RLN rate-limit are enforced on-chain.
+Checks: on-chain hash match → nonce binding → ECDSA signature → NVIDIA NRAS → Intel TDX quote → outputs `{ verdict: "PASS" }`.
 
-See [PLAN §3](./PLAN.md) for the full contract, REST, and envelope specs.
-
-## Environment reference
-
-Top-level `.env.example` is grouped by service (SHARED / WEB / NEGOTIATION_SERVICE / TEE / CONTRACTS). Copy to `.env.local` and fill in.
-
-Mock mode (no TEE or contracts needed):
-```
-MOCK_TEE=1
-NEXT_PUBLIC_NEGOTIATION_SERVICE_URL=http://localhost:3001
-```
+See [docs/attestation-verification.md](./docs/attestation-verification.md) for full instructions.

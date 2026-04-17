@@ -36,6 +36,7 @@ const AGREEMENT_STATUS: GetStatusResponse = {
       meetTimeIso: '2026-04-18T19:00:00+09:00',
       payment: 'cash',
     },
+    agreedConditionsHash: hex('ff'.repeat(32)),
     modelId: 'qwen3-30b',
     completionId: 'chatcmpl-abc123',
     nonce: hex('aa'.repeat(32)),

@@ -7,9 +7,10 @@ import { render, screen } from '@testing-library/react';
 import { AttestationViewer } from '../../components/AttestationViewer';
 import type { NearAiAttestation, Hex } from '@haggle/shared';
 
-// Mock useAttestationBundle so the expando doesn't fetch during unit tests
+// Mock useAttestationBundle so we can control its return value per test
+const mockUseAttestationBundle = vi.fn(() => ({ data: undefined, isLoading: false, error: null }));
 vi.mock('@/lib/api', () => ({
-  useAttestationBundle: () => ({ data: undefined, isLoading: false, error: null }),
+  useAttestationBundle: (...args: unknown[]) => mockUseAttestationBundle(...args),
 }));
 
 // Mock sonner toast
@@ -31,6 +32,7 @@ const SAMPLE_ATTESTATION: NearAiAttestation = {
     meetTimeIso: '2026-04-18T19:00:00+09:00',
     payment: 'cash',
   },
+  agreedConditionsHash: hex('ff'.repeat(32)),
   modelId: 'qwen3-30b',
   completionId: 'chatcmpl-abcdef123456',
   nonce: hex('aa'.repeat(32)),
@@ -74,5 +76,28 @@ describe('AttestationViewer', () => {
     render(<AttestationViewer attestation={SAMPLE_ATTESTATION} />);
     expect(screen.getByText(/Intel TDX/)).toBeInTheDocument();
     expect(screen.getByText(/NVIDIA GPU TEE/)).toBeInTheDocument();
+  });
+});
+
+describe('AttestationBundleExpando error path', () => {
+  it('renders error message when bundle fetch fails', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    // Return error on every call so it's active when expando opens and re-renders
+    mockUseAttestationBundle.mockImplementation(() => ({
+      data: undefined,
+      isLoading: false,
+      error: new Error('network failure'),
+    }));
+
+    render(<AttestationViewer attestation={SAMPLE_ATTESTATION} />);
+
+    // Open the expando — this causes AttestationBundleExpando to call useAttestationBundle with a real dealId
+    const expandoButton = screen.getByRole('button', { name: /전체 증명 번들 보기/ });
+    fireEvent.click(expandoButton);
+
+    expect(screen.getByText(/번들을 불러올 수 없습니다/)).toBeInTheDocument();
+
+    // Restore default mock
+    mockUseAttestationBundle.mockImplementation(() => ({ data: undefined, isLoading: false, error: null }));
   });
 });

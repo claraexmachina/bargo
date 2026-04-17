@@ -78,8 +78,7 @@ export function ConditionInput({
       <div className="flex items-start justify-between gap-2">
         <div id={id ? `${id}-hint` : undefined} className="space-y-0.5">
           <p className="text-xs text-muted-foreground">
-            이 조건은 <strong>암호화되어 TEE로 전송</strong>됩니다.
-            서버·운영자도 원문을 볼 수 없습니다.
+            이 조건은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 운영자는 합의 직후 plaintext 자동 purge. 상대방은 절대 볼 수 없습니다.
           </p>
           {sensitiveWarning && (
             <p className="text-xs text-destructive" role="alert">
