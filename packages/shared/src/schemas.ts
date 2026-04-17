@@ -21,13 +21,6 @@ const listingMetaSchema = z.object({
   images: z.array(z.string()).max(10),
 });
 
-const encryptedBlobSchema = z.object({
-  v: z.literal(1),
-  ephPub: hexSchema,
-  nonce: hexSchema,
-  ct: hexSchema,
-});
-
 const rlnProofSchema = z.object({
   epoch: z.number().int().positive(),
   proof: hexSchema,
@@ -36,20 +29,29 @@ const rlnProofSchema = z.object({
   rlnIdentityCommitment: hexSchema,
 });
 
+const agreedConditionsSchema = z.object({
+  location: z.string().min(1).max(200),
+  meetTimeIso: z.string().min(1),
+  payment: z.enum(['cash', 'card', 'transfer', 'crypto']),
+});
+
+// Upper bound aligned with PLAN_V2 §3.1 (plaintext conditions max 2KB).
+const PLAINTEXT_CONDITIONS_MAX = 2048;
+
 // POST /listing
 export const postListingRequestSchema = z.object({
   seller: addressSchema,
   askPrice: z.string().regex(/^\d+$/, 'askPrice must be a decimal wei string'),
   requiredKarmaTier: karmaTierSchema,
   itemMeta: listingMetaSchema,
-  encMinSell: encryptedBlobSchema,
-  encSellerConditions: encryptedBlobSchema,
+  plaintextMinSell: z.string().regex(/^\d+$/, 'plaintextMinSell must be a decimal wei string'),
+  plaintextSellerConditions: z.string().trim().max(PLAINTEXT_CONDITIONS_MAX),
 });
 export type PostListingRequestParsed = z.infer<typeof postListingRequestSchema>;
 
 export const postListingResponseSchema = z.object({
   listingId: listingIdSchema,
-  onchainTxHash: hexSchema,
+  onchainTxHash: hexSchema.nullable(),
 });
 export type PostListingResponseParsed = z.infer<typeof postListingResponseSchema>;
 
@@ -58,8 +60,8 @@ export const postOfferRequestSchema = z.object({
   buyer: addressSchema,
   listingId: listingIdSchema,
   bidPrice: z.string().regex(/^\d+$/, 'bidPrice must be a decimal wei string'),
-  encMaxBuy: encryptedBlobSchema,
-  encBuyerConditions: encryptedBlobSchema,
+  plaintextMaxBuy: z.string().regex(/^\d+$/, 'plaintextMaxBuy must be a decimal wei string'),
+  plaintextBuyerConditions: z.string().trim().max(PLAINTEXT_CONDITIONS_MAX),
   rlnProof: rlnProofSchema,
 });
 export type PostOfferRequestParsed = z.infer<typeof postOfferRequestSchema>;
@@ -71,18 +73,27 @@ export const postOfferResponseSchema = z.object({
 });
 export type PostOfferResponseParsed = z.infer<typeof postOfferResponseSchema>;
 
+// NEAR AI attestation (returned inside GET /status and stored on disk)
+const nearAiAttestationSchema = z.object({
+  dealId: dealIdSchema,
+  listingId: listingIdSchema,
+  offerId: offerIdSchema,
+  agreedPrice: z.string().regex(/^\d+$/),
+  agreedConditions: agreedConditionsSchema,
+  modelId: z.string().min(1),
+  completionId: z.string().min(1),
+  nonce: hexSchema,
+  nearAiAttestationHash: hexSchema,
+  attestationBundleUrl: z.string().min(1),
+  ts: z.number().int().positive(),
+});
+
 // GET /status/:negotiationId
 export const getStatusResponseSchema = z.object({
   negotiationId: dealIdSchema,
   state: z.enum(['queued', 'running', 'agreement', 'fail', 'settled']),
-  attestation: z
-    .object({
-      payload: z.unknown(), // typed consumers use TeeAttestation from types.ts
-      result: z.enum(['agreement', 'fail']),
-      signature: hexSchema,
-      signerAddress: addressSchema,
-    })
-    .optional(),
+  attestation: nearAiAttestationSchema.optional(),
+  failureReason: z.enum(['no_price_zopa', 'conditions_incompatible', 'llm_timeout']).optional(),
   onchainTxHash: hexSchema.optional(),
   updatedAt: z.number().int().positive(),
 });
@@ -104,12 +115,17 @@ export type PostAttestationReceiptResponseParsed = z.infer<
   typeof postAttestationReceiptResponseSchema
 >;
 
-// GET /tee-pubkey
-export const getTeePubkeyResponseSchema = z.object({
-  pubkey: hexSchema,
-  enclaveId: hexSchema,
-  modelId: z.string().min(1),
-  signerAddress: addressSchema,
-  whitelistedAt: z.number().int().positive(),
+// GET /attestation/:dealId — raw NEAR AI bundle served verbatim to verifier
+export const nearAiAttestationBundleSchema = z.object({
+  quote: hexSchema,
+  gpu_evidence: hexSchema,
+  signing_key: hexSchema,
+  signed_response: z.object({
+    model: z.string().min(1),
+    nonce: hexSchema,
+    completion_id: z.string().min(1),
+    timestamp: z.number().int().positive(),
+  }),
+  signature: hexSchema,
 });
-export type GetTeePubkeyResponseParsed = z.infer<typeof getTeePubkeyResponseSchema>;
+export type NearAiAttestationBundleParsed = z.infer<typeof nearAiAttestationBundleSchema>;

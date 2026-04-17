@@ -1,8 +1,8 @@
 // ============================================================
 // packages/shared/src/types.ts
-// FROZEN at T+3h. Changes require 3/4 lead consensus.
-// TEE signature scheme: secp256k1 ECDSA over EIP-712 structured data.
-// Reason: Hoodi has native ecrecover; no custom curve lib needed on-chain.
+// Haggle V2 — NEAR AI Cloud TEE architecture.
+// See PLAN_V2.md §3.1 for the full spec. Frozen at Phase 1 start.
+// Any change requires A+B+C sign-off + version bump.
 // ============================================================
 
 // --- primitives ---
@@ -15,7 +15,7 @@ export type DealId = Hex; // keccak256(listingId || offerId), bytes32
 // --- Karma ---
 export type KarmaTier = 0 | 1 | 2 | 3;
 
-// --- Listing & Offer ---
+// --- Listing & Offer (public — no reservation data exposed) ---
 export interface ListingMeta {
   title: string;
   description: string;
@@ -30,86 +30,62 @@ export interface ListingPublic {
   requiredKarmaTier: KarmaTier;
   itemMeta: ListingMeta;
   status: 'open' | 'negotiating' | 'settled' | 'completed' | 'cancelled';
-  createdAt: number; // unix seconds
-  // encrypted fields NOT returned in public GET
+  createdAt: number;
 }
 
 export interface OfferPublic {
   id: OfferId;
   listingId: ListingId;
   buyer: Address;
-  bidPrice: string; // wei as decimal string
+  bidPrice: string;
   status: 'pending' | 'matched' | 'failed' | 'withdrawn';
   createdAt: number;
 }
 
-// --- Conditions (LLM output schema — FROZEN) ---
+// --- Conditions (structured output from NEAR AI LLM) ---
 export interface ConditionStruct {
-  location: string[]; // normalized district names, e.g. ['gangnam', 'songpa']
+  location: string[];
   timeWindow: {
     days: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
-    startHour: number; // 0-23 local KST
-    endHour: number; // 0-23 local KST, exclusive
+    startHour: number; // 0-23 KST
+    endHour: number; // 0-23 KST, exclusive
   };
   payment: Array<'cash' | 'card' | 'transfer' | 'crypto'>;
-  extras: string[]; // free-form tags: 'has-box', 'receipt-required', etc.
+  extras: string[];
 }
 
 export interface AgreedConditions {
-  location: string; // single chosen district
-  meetTimeIso: string; // ISO 8601 with KST offset
+  location: string;
+  meetTimeIso: string; // ISO 8601 with +09:00
   payment: 'cash' | 'card' | 'transfer' | 'crypto';
 }
 
-// --- Encryption envelope (see PLAN §3.5 for byte layout) ---
-export interface EncryptedBlob {
-  v: 1; // version
-  ephPub: Hex; // 32-byte X25519 ephemeral pubkey, hex
-  nonce: Hex; // 24-byte XChaCha20 nonce, hex
-  ct: Hex; // ciphertext + Poly1305 tag, hex
-}
-
-// --- TEE attestation ---
-// Signature scheme: secp256k1 ECDSA over EIP-712 structured data.
-// signature: 65-byte r||s||v, hex-encoded (recoverable sig for on-chain ecrecover).
-// signerAddress: Ethereum address (20 bytes) — must be in ENCLAVE_SIGNERS whitelist.
-export interface TeeAgreement {
+// --- NEAR AI attestation ---
+// Nonce = keccak256(dealId || completionId) — binds attestation to a specific inference.
+// nearAiAttestationHash = keccak256(canonicalize(full attestation bundle JSON)).
+// Full bundle (quote + gpu_evidence + signing_key + signed_response + signature)
+// is served by GET /attestation/:dealId on the negotiation service.
+export interface NearAiAttestation {
+  dealId: DealId;
   listingId: ListingId;
   offerId: OfferId;
-  agreedPrice: string; // wei as decimal string
+  agreedPrice: string;
   agreedConditions: AgreedConditions;
-  modelId: string; // e.g. "near-ai/llama-3.1-8b-instruct@v1"
-  enclaveId: Hex; // bytes32 measurement
-  ts: number; // unix seconds
-  nonce: Hex; // bytes16, replay protection
-}
-
-export interface TeeFailure {
-  listingId: ListingId;
-  offerId: OfferId;
-  reasonHash: Hex; // bytes32 = keccak256("conditions_incompatible" | "no_price_zopa")
-  modelId: string;
-  enclaveId: Hex;
+  modelId: string; // "qwen3-30b" or fallback
+  completionId: string; // NEAR AI chat completion id
+  nonce: Hex; // keccak256(dealId || completionId)
+  nearAiAttestationHash: Hex; // keccak256 of canonical attestation bundle
+  attestationBundleUrl: string; // /attestation/<dealId>
   ts: number;
-  nonce: Hex;
 }
 
-export interface TeeAttestation {
-  payload: TeeAgreement | TeeFailure;
-  result: 'agreement' | 'fail';
-  // secp256k1 ECDSA sig: 65 bytes (r||s||v), over EIP-712 hash of payload
-  signature: Hex;
-  // Ethereum address of enclave signer — must be in ENCLAVE_SIGNERS
-  signerAddress: Address;
-}
-
-// --- RLN proof ---
+// --- RLN proof (unchanged from V1) ---
 export interface RLNProof {
-  epoch: number; // unix seconds / RLN_EPOCH_DURATION
-  proof: Hex; // ZK proof bytes; stub = keccak256(signal||epoch||sk)
-  nullifier: Hex; // bytes32
-  signalHash: Hex; // keccak256 of (listingId || bidPrice || epoch)
-  rlnIdentityCommitment: Hex; // bytes32 Merkle leaf
+  epoch: number;
+  proof: Hex;
+  nullifier: Hex;
+  signalHash: Hex;
+  rlnIdentityCommitment: Hex;
 }
 
 // --- REST DTOs ---
@@ -118,21 +94,21 @@ export interface PostListingRequest {
   askPrice: string;
   requiredKarmaTier: KarmaTier;
   itemMeta: ListingMeta;
-  encMinSell: EncryptedBlob;
-  encSellerConditions: EncryptedBlob;
+  plaintextMinSell: string; // wei as decimal
+  plaintextSellerConditions: string; // utf-8, max 2KB, trimmed
 }
 
 export interface PostListingResponse {
   listingId: ListingId;
-  onchainTxHash: Hex;
+  onchainTxHash: Hex | null; // null until relayer broadcasts
 }
 
 export interface PostOfferRequest {
   buyer: Address;
   listingId: ListingId;
   bidPrice: string;
-  encMaxBuy: EncryptedBlob;
-  encBuyerConditions: EncryptedBlob;
+  plaintextMaxBuy: string;
+  plaintextBuyerConditions: string;
   rlnProof: RLNProof;
 }
 
@@ -142,10 +118,14 @@ export interface PostOfferResponse {
   status: 'queued';
 }
 
+export type NegotiationState = 'queued' | 'running' | 'agreement' | 'fail' | 'settled';
+export type FailureReason = 'no_price_zopa' | 'conditions_incompatible' | 'llm_timeout';
+
 export interface GetStatusResponse {
   negotiationId: DealId;
-  state: 'queued' | 'running' | 'agreement' | 'fail' | 'settled';
-  attestation?: TeeAttestation;
+  state: NegotiationState;
+  attestation?: NearAiAttestation;
+  failureReason?: FailureReason;
   onchainTxHash?: Hex;
   updatedAt: number;
 }
@@ -159,10 +139,18 @@ export interface PostAttestationReceiptResponse {
   ok: true;
 }
 
-export interface GetTeePubkeyResponse {
-  pubkey: Hex; // 32-byte X25519 encryption pubkey
-  enclaveId: Hex;
-  modelId: string;
-  signerAddress: Address; // Ethereum address for attestation verification
-  whitelistedAt: number; // unix seconds it was added to ENCLAVE_SIGNERS
+// --- NEAR AI attestation bundle (raw) — served by GET /attestation/:dealId ---
+// Shape confirmed in Phase 0 by Agent B; deviations documented in
+// docs/attestation-verification.md.
+export interface NearAiAttestationBundle {
+  quote: Hex; // Intel TDX quote
+  gpu_evidence: Hex; // NVIDIA evidence for NRAS
+  signing_key: Hex; // secp256k1 uncompressed pubkey
+  signed_response: {
+    model: string;
+    nonce: Hex;
+    completion_id: string;
+    timestamp: number;
+  };
+  signature: Hex; // ECDSA over sha256(canonicalize(signed_response))
 }
