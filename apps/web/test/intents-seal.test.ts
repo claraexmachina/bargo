@@ -5,12 +5,12 @@
  * Uses the same open() helper from @bargo/crypto.
  */
 import { generateServiceKeypair, open } from '@bargo/crypto';
-import { sha256 } from '@noble/hashes/sha256';
+import { keccak256, toBytes } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { sealIntentConditions, sealIntentMaxBuy } from '@/lib/seal';
 
 function buildIntentAad(): Uint8Array {
-  return sha256(new TextEncoder().encode('bargo-intent-v1'));
+  return toBytes(keccak256(new TextEncoder().encode('bargo-intent-v1')));
 }
 
 describe('sealIntentMaxBuy', () => {

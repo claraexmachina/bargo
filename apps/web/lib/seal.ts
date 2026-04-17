@@ -1,6 +1,6 @@
 import { buildListingAad, seal } from '@bargo/crypto';
 import type { EncryptedBlob, Hex, ListingId } from '@bargo/shared';
-import { sha256 } from '@noble/hashes/sha256';
+import { keccak256, toBytes } from 'viem';
 
 export function sealReservationPrice(opts: {
   servicePubkey: Hex;
@@ -27,10 +27,9 @@ export function sealConditions(opts: {
 }
 
 // Intent context AAD — matches service-side constant (NOT tied to a listing).
-// keccak256('bargo-intent-v1') — we use sha256 here as a stand-in since the
-// crypto package doesn't expose keccak; the service must match this derivation.
+// keccak256(utf8 "bargo-intent-v1") — service matchmaker.ts uses the same.
 function buildIntentAad(): Uint8Array {
-  return sha256(new TextEncoder().encode('bargo-intent-v1'));
+  return toBytes(keccak256(new TextEncoder().encode('bargo-intent-v1')));
 }
 
 export function sealIntentMaxBuy(opts: {
