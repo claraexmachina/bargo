@@ -1,7 +1,13 @@
 // crypto.test.ts — end-to-end: client seals → service decrypts → exact bytes recovered.
 // Uses @bargo/crypto seal + buildListingAad directly, then decryptReservationEphemeral.
 
-import { buildListingAad, bytesToHex, generateServiceKeypair, hexToBytes, seal } from '@bargo/crypto';
+import {
+  buildListingAad,
+  bytesToHex,
+  generateServiceKeypair,
+  hexToBytes,
+  seal,
+} from '@bargo/crypto';
 import { describe, expect, it } from 'vitest';
 import { decryptReservationEphemeral } from '../src/crypto/decryptEphemeral.js';
 

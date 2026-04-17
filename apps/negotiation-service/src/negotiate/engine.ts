@@ -59,15 +59,19 @@ export type NegotiationResult =
 
 export async function runNegotiation(opts: RunNegotiationOpts): Promise<NegotiationResult> {
   // A. Ephemeral decrypt — plaintext lives only in this scope, never logged.
-  const { minSellWei, maxBuyWei, sellerConditions: sellerConditionsText, buyerConditions: buyerConditionsText } =
-    decryptReservationEphemeral({
-      serviceDecryptSk: opts.serviceDecryptSk,
-      listingId: opts.listingId,
-      encMinSell: opts.encMinSell,
-      encSellerConditions: opts.encSellerConditions,
-      encMaxBuy: opts.encMaxBuy,
-      encBuyerConditions: opts.encBuyerConditions,
-    });
+  const {
+    minSellWei,
+    maxBuyWei,
+    sellerConditions: sellerConditionsText,
+    buyerConditions: buyerConditionsText,
+  } = decryptReservationEphemeral({
+    serviceDecryptSk: opts.serviceDecryptSk,
+    listingId: opts.listingId,
+    encMinSell: opts.encMinSell,
+    encSellerConditions: opts.encSellerConditions,
+    encMaxBuy: opts.encMaxBuy,
+    encBuyerConditions: opts.encBuyerConditions,
+  });
 
   // B. ZOPA check
   if (maxBuyWei < minSellWei) {

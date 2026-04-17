@@ -1,4 +1,5 @@
 import type {
+  EncryptedBlob,
   GetStatusResponse,
   Hex,
   NearAiAttestation,
@@ -7,8 +8,8 @@ import type {
   RLNProof,
 } from '@bargo/shared';
 /**
- * Type-level test: plaintext DTOs compile correctly with @bargo/shared types.
- * These tests verify that the V2 API shapes are used consistently.
+ * Type-level tests: V3 sealed-bid DTOs. No public price fields anywhere.
+ * Reservation data always passes as EncryptedBlob.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -16,32 +17,37 @@ function hex(s: string): Hex {
   return `0x${s}` as Hex;
 }
 
-describe('V2 DTO type-level tests', () => {
-  it('PostListingRequest has plaintextMinSell and plaintextSellerConditions', () => {
+function fakeBlob(): EncryptedBlob {
+  return {
+    v: 1,
+    ephPub: hex('aa'.repeat(32)),
+    nonce: hex('bb'.repeat(24)),
+    ct: hex('cc'.repeat(48)),
+  };
+}
+
+describe('V3 DTO type-level tests', () => {
+  it('PostListingRequest has encMinSell + encSellerConditions (no askPrice, no plaintext)', () => {
     const req: PostListingRequest = {
       listingId: hex('11'.repeat(32)),
       seller: hex('DEAD000000000000000000000000000000000000'),
-      askPrice: '800000000000000000000000',
       requiredKarmaTier: 2,
       itemMeta: {
-        title: '맥북 M1 Pro',
-        description: '최상',
+        title: 'MacBook M1 Pro',
+        description: 'Excellent condition',
         category: 'electronics',
         images: [],
       },
-      plaintextMinSell: '700000000000000000000000',
-      plaintextSellerConditions: '강남/송파 직거래만, 평일 19시 이후',
+      encMinSell: fakeBlob(),
+      encSellerConditions: fakeBlob(),
       onchainTxHash: hex('aa'.repeat(32)),
     };
 
-    expect(req.plaintextMinSell).toMatch(/^\d+$/);
-    expect(req.plaintextSellerConditions).toBeTypeOf('string');
-    // encMinSell must NOT exist on the V2 type
-    // @ts-expect-error — encMinSell was removed in V2
-    expect(req.encMinSell).toBeUndefined();
+    expect(req.encMinSell.v).toBe(1);
+    expect(req.encSellerConditions.v).toBe(1);
   });
 
-  it('PostOfferRequest has plaintextMaxBuy and plaintextBuyerConditions', () => {
+  it('PostOfferRequest has encMaxBuy + encBuyerConditions (no bidPrice, no plaintext)', () => {
     const rlnProof: RLNProof = {
       epoch: 1,
       proof: hex('aa'.repeat(32)),
@@ -54,27 +60,24 @@ describe('V2 DTO type-level tests', () => {
       offerId: hex('22'.repeat(32)),
       buyer: hex('BEEF000000000000000000000000000000000000'),
       listingId: hex('11'.repeat(32)),
-      bidPrice: '720000000000000000000000',
-      plaintextMaxBuy: '750000000000000000000000',
-      plaintextBuyerConditions: '강남 가능, 토요일만',
+      encMaxBuy: fakeBlob(),
+      encBuyerConditions: fakeBlob(),
       rlnProof,
       onchainTxHash: hex('bb'.repeat(32)),
     };
 
-    expect(req.plaintextMaxBuy).toMatch(/^\d+$/);
-    expect(req.plaintextBuyerConditions).toBeTypeOf('string');
-    // @ts-expect-error — encMaxBuy was removed in V2
-    expect(req.encMaxBuy).toBeUndefined();
+    expect(req.encMaxBuy.v).toBe(1);
+    expect(req.encBuyerConditions.v).toBe(1);
   });
 
-  it('GetStatusResponse attestation is NearAiAttestation', () => {
+  it('GetStatusResponse attestation is NearAiAttestation — agreedPrice is the only revealed price', () => {
     const attestation: NearAiAttestation = {
       dealId: hex('aa'.repeat(32)),
       listingId: hex('bb'.repeat(32)),
       offerId: hex('cc'.repeat(32)),
       agreedPrice: '725000000000000000000000',
       agreedConditions: {
-        location: '강남역 8번출구',
+        location: 'Gangnam Station Exit 8',
         meetTimeIso: '2026-04-18T19:00:00+09:00',
         payment: 'cash',
       },

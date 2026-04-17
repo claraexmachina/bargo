@@ -7,6 +7,7 @@
  */
 import type {
   DealId,
+  GetServicePubkeyResponse,
   GetStatusResponse,
   ListingId,
   ListingPublic,
@@ -30,6 +31,21 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
+}
+
+// ─── Service encryption pubkey ────────────────────────────────────────────────
+
+export async function fetchServicePubkey(): Promise<GetServicePubkeyResponse> {
+  return fetchJSON<GetServicePubkeyResponse>('/service-pubkey');
+}
+
+export function useServicePubkey() {
+  return useQuery({
+    queryKey: ['service-pubkey'],
+    queryFn: fetchServicePubkey,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
 }
 
 // ─── Listings ─────────────────────────────────────────────────────────────────

@@ -35,10 +35,10 @@ vi.mock('../src/crypto/decryptEphemeral.js', () => ({
   }),
 }));
 
+import * as decryptMock from '../src/crypto/decryptEphemeral.js';
 import * as nearAiAttestationMock from '../src/nearai/attestation.js';
 import { LLMTimeoutError } from '../src/nearai/client.js';
 import * as nearAiClientMock from '../src/nearai/client.js';
-import * as decryptMock from '../src/crypto/decryptEphemeral.js';
 import { runNegotiation } from '../src/negotiate/engine.js';
 
 // Typed mock helpers
@@ -47,8 +47,9 @@ const mockFetchAttestation = nearAiAttestationMock.fetchAttestation as ReturnTyp
 const mockSaveAttestationBundle = nearAiAttestationMock.saveAttestationBundle as ReturnType<
   typeof vi.fn
 >;
-const mockDecryptReservationEphemeral =
-  decryptMock.decryptReservationEphemeral as ReturnType<typeof vi.fn>;
+const mockDecryptReservationEphemeral = decryptMock.decryptReservationEphemeral as ReturnType<
+  typeof vi.fn
+>;
 
 // Minimal EncryptedBlob fixture
 function makeBlob(tag: string): EncryptedBlob {
