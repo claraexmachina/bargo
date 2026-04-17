@@ -4,12 +4,12 @@
 // POST /attestation-receipt — records acknowledgement from seller or buyer.
 // clientSignature verification is skipped for hackathon (just record ack).
 
-import type { FastifyInstance } from 'fastify';
 import { postAttestationReceiptRequestSchema } from '@bargo/shared';
 import type { DealId } from '@bargo/shared';
+import type Database from 'better-sqlite3';
+import type { FastifyInstance } from 'fastify';
 import { getNegotiationById } from '../db/client.js';
 import { loadAttestationBundle } from '../nearai/attestation.js';
-import type Database from 'better-sqlite3';
 
 export async function attestationRoutes(
   app: FastifyInstance,
@@ -40,7 +40,10 @@ export async function attestationRoutes(
     const result = postAttestationReceiptRequestSchema.safeParse(request.body);
     if (!result.success) {
       return reply.code(400).send({
-        error: { code: 'bad-request', message: result.error.issues[0]?.message ?? 'Invalid request body' },
+        error: {
+          code: 'bad-request',
+          message: result.error.issues[0]?.message ?? 'Invalid request body',
+        },
       });
     }
 

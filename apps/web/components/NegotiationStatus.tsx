@@ -1,9 +1,9 @@
 'use client';
 
-import type { GetStatusResponse } from '@bargo/shared';
-import { Button } from '@/components/ui/button';
 import { AttestationViewer } from '@/components/AttestationViewer';
+import { Button } from '@/components/ui/button';
 import { formatKRW, formatMeetTime } from '@/lib/format';
+import type { GetStatusResponse } from '@bargo/shared';
 
 interface NegotiationStatusProps {
   status: GetStatusResponse;
@@ -24,7 +24,9 @@ function BotVsBotAnimation() {
           className="h-2 w-2 rounded-full bg-blue-500 animate-accent-blink-a mb-1"
           aria-hidden="true"
         />
-        <div className="text-3xl animate-bot-pulse" aria-hidden="true">🤖</div>
+        <div className="text-3xl animate-bot-pulse" aria-hidden="true">
+          🤖
+        </div>
         <div className="rounded-xl bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300 max-w-[80px] text-center">
           판매자봇
         </div>
@@ -43,7 +45,9 @@ function BotVsBotAnimation() {
           className="h-2 w-2 rounded-full bg-purple-500 animate-accent-blink-b mb-1"
           aria-hidden="true"
         />
-        <div className="text-3xl animate-bot-pulse" aria-hidden="true">🤖</div>
+        <div className="text-3xl animate-bot-pulse" aria-hidden="true">
+          🤖
+        </div>
         <div className="rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-1.5 text-xs text-purple-700 dark:text-purple-300 max-w-[80px] text-center">
           구매자봇
         </div>
@@ -61,7 +65,8 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         <BotVsBotAnimation />
         <p className="text-sm font-medium">NEAR AI TEE 안에서 협상 중...</p>
         <p className="text-xs text-muted-foreground">
-          가격·조건은 NEAR AI TEE 안에서 LLM이 처리합니다. 상대방은 절대 볼 수 없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
+          가격·조건은 NEAR AI TEE 안에서 LLM이 처리합니다. 상대방은 절대 볼 수 없고, 운영자는 합의
+          중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
         </p>
       </div>
     );
@@ -70,11 +75,13 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
   if (state === 'fail') {
     return (
       <div className="text-center space-y-4 py-4">
-        <div className="text-4xl" aria-hidden="true">❌</div>
-        <p className="text-lg font-semibold text-destructive">협상 실패 — 조건을 조정해서 다시 시도해 보세요</p>
-        <p className="text-sm text-muted-foreground">
-          어느 조건이 충돌했는지는 공개되지 않습니다.
+        <div className="text-4xl" aria-hidden="true">
+          ❌
+        </div>
+        <p className="text-lg font-semibold text-destructive">
+          협상 실패 — 조건을 조정해서 다시 시도해 보세요
         </p>
+        <p className="text-sm text-muted-foreground">어느 조건이 충돌했는지는 공개되지 않습니다.</p>
         {onRetry && (
           <Button onClick={onRetry} variant="outline" className="mt-2">
             다시 시도
@@ -92,25 +99,35 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
     return (
       <div className="space-y-4 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-2xl" aria-hidden="true">🎉</span>
+          <span className="text-2xl" aria-hidden="true">
+            🎉
+          </span>
           <p className="text-lg font-semibold text-green-600 dark:text-green-400">협상 성공!</p>
         </div>
 
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">합의 가격</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
+              합의 가격
+            </p>
             <p className="text-2xl font-bold">{formatKRW(agreedPrice)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">만남 장소</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
+              만남 장소
+            </p>
             <p className="font-medium">{agreedConditions.location}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">만남 시간</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
+              만남 시간
+            </p>
             <p className="font-medium">{formatMeetTime(agreedConditions.meetTimeIso)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">결제 방식</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
+              결제 방식
+            </p>
             <p className="font-medium">{agreedConditions.payment}</p>
           </div>
         </div>
@@ -118,11 +135,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         <AttestationViewer attestation={attestation} onchainTxHash={onchainTxHash} />
 
         {state === 'agreement' && onLockEscrow && (
-          <Button
-            onClick={() => onLockEscrow(agreedPrice)}
-            className="w-full"
-            size="lg"
-          >
+          <Button onClick={() => onLockEscrow(agreedPrice)} className="w-full" size="lg">
             에스크로 락업
           </Button>
         )}

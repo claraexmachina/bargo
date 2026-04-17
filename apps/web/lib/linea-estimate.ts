@@ -38,7 +38,9 @@ export async function lineaEstimateGas(
     params.value = `0x${tx.value.toString(16)}`;
   }
 
-  const raw = await (client as { request: (a: { method: string; params: unknown[] }) => Promise<unknown> }).request({
+  const raw = await (
+    client as { request: (a: { method: string; params: unknown[] }) => Promise<unknown> }
+  ).request({
     method: 'linea_estimateGas',
     params: [params],
   });

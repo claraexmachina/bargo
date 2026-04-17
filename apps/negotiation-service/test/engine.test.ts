@@ -1,7 +1,7 @@
 // Engine unit tests — mocks parseConditionsPair and fetchAttestation.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ConditionStruct } from '@bargo/shared';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- Mocks ---
 
@@ -18,27 +18,29 @@ vi.mock('../src/nearai/client.js', () => ({
 vi.mock('../src/nearai/attestation.js', () => ({
   fetchAttestation: vi.fn(),
   saveAttestationBundle: vi.fn().mockReturnValue('/tmp/test.json'),
-  computeNonce: vi.fn().mockReturnValue('0x' + 'aa'.repeat(32)),
-  hashBundle: vi.fn().mockReturnValue('0x' + 'bb'.repeat(32)),
+  computeNonce: vi.fn().mockReturnValue(`0x${'aa'.repeat(32)}`),
+  hashBundle: vi.fn().mockReturnValue(`0x${'bb'.repeat(32)}`),
   canonicalizeBundle: vi.fn().mockReturnValue('{}'),
   loadAttestationBundle: vi.fn().mockReturnValue(null),
   runStartupAttestationCheck: vi.fn(),
 }));
 
-import { runNegotiation } from '../src/negotiate/engine.js';
+import * as nearAiAttestationMock from '../src/nearai/attestation.js';
 import { LLMTimeoutError } from '../src/nearai/client.js';
 import * as nearAiClientMock from '../src/nearai/client.js';
-import * as nearAiAttestationMock from '../src/nearai/attestation.js';
+import { runNegotiation } from '../src/negotiate/engine.js';
 
 // Typed mock helpers — extracted after imports
 const mockParseConditionsPair = nearAiClientMock.parseConditionsPair as ReturnType<typeof vi.fn>;
 const mockFetchAttestation = nearAiAttestationMock.fetchAttestation as ReturnType<typeof vi.fn>;
-const mockSaveAttestationBundle = nearAiAttestationMock.saveAttestationBundle as ReturnType<typeof vi.fn>;
+const mockSaveAttestationBundle = nearAiAttestationMock.saveAttestationBundle as ReturnType<
+  typeof vi.fn
+>;
 
 const BASE_OPTS = {
-  dealId: ('0x' + '00'.repeat(32)) as `0x${string}`,
-  listingId: ('0x' + '01'.repeat(32)) as `0x${string}`,
-  offerId: ('0x' + '02'.repeat(32)) as `0x${string}`,
+  dealId: `0x${'00'.repeat(32)}` as `0x${string}`,
+  listingId: `0x${'01'.repeat(32)}` as `0x${string}`,
+  offerId: `0x${'02'.repeat(32)}` as `0x${string}`,
   listingTitle: 'Test Item',
   sellerPlaintextMin: '800000',
   sellerPlaintextConditions: '강남, 주말',
@@ -68,16 +70,16 @@ const BUYER_CONDITIONS: ConditionStruct = {
 };
 
 const MOCK_BUNDLE = {
-  quote: '0x' + 'cc'.repeat(4),
-  gpu_evidence: '0x' + 'dd'.repeat(4),
-  signing_key: '0x' + 'ee'.repeat(4),
+  quote: `0x${'cc'.repeat(4)}`,
+  gpu_evidence: `0x${'dd'.repeat(4)}`,
+  signing_key: `0x${'ee'.repeat(4)}`,
   signed_response: {
     model: 'qwen3-30b',
-    nonce: '0x' + 'aa'.repeat(32),
+    nonce: `0x${'aa'.repeat(32)}`,
     completion_id: 'chatcmpl-test',
     timestamp: 1_700_000_000,
   },
-  signature: '0x' + 'ff'.repeat(4),
+  signature: `0x${'ff'.repeat(4)}`,
 };
 
 function mockHappyPath() {
@@ -88,8 +90,8 @@ function mockHappyPath() {
   });
   mockFetchAttestation.mockResolvedValue({
     bundle: MOCK_BUNDLE,
-    bundleHash: '0x' + 'bb'.repeat(32),
-    nonce: '0x' + 'aa'.repeat(32),
+    bundleHash: `0x${'bb'.repeat(32)}`,
+    nonce: `0x${'aa'.repeat(32)}`,
   });
 }
 
@@ -112,7 +114,9 @@ describe('runNegotiation — happy path', () => {
     expect(result.attestation.agreedConditions.payment).toBe('cash');
     // agreedConditionsHash must be a distinct hex (not same as nearAiAttestationHash)
     expect(result.attestation.agreedConditionsHash).toMatch(/^0x[0-9a-fA-F]{64}$/);
-    expect(result.attestation.agreedConditionsHash).not.toBe(result.attestation.nearAiAttestationHash);
+    expect(result.attestation.agreedConditionsHash).not.toBe(
+      result.attestation.nearAiAttestationHash,
+    );
     // attestationBundlePath is now returned from engine
     expect(result.attestationBundlePath).toBe('/tmp/test.json');
     // agreedPrice within ZOPA: 800000..950000
@@ -132,7 +136,9 @@ describe('runNegotiation — happy path', () => {
 });
 
 describe('runNegotiation — no_price_zopa', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns fail when buyerMax < sellerMin', async () => {
     const result = await runNegotiation({

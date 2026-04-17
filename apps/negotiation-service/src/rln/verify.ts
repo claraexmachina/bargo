@@ -8,11 +8,11 @@
 // TODO: If RLN_SDK env flag is set, import real Status RLN SDK here.
 // The DB-backed nullifier store is the authoritative rate-limiter.
 
-import { keccak256, encodePacked } from 'viem';
-import type Database from 'better-sqlite3';
-import { getRlnNullifierCount, recordRlnNullifier } from '../db/client.js';
 import { RLN_MAX_PER_EPOCH } from '@bargo/shared';
 import type { RLNProof } from '@bargo/shared';
+import type Database from 'better-sqlite3';
+import { encodePacked, keccak256 } from 'viem';
+import { getRlnNullifierCount, recordRlnNullifier } from '../db/client.js';
 
 export type RlnVerifyResult =
   | { ok: true }
@@ -29,10 +29,7 @@ export type RlnVerifyResult =
  *    If already at MAX_PER_EPOCH → reject before incrementing.
  * 4. Record use (increment count).
  */
-export function verifyRlnProof(
-  db: Database.Database,
-  proof: RLNProof,
-): RlnVerifyResult {
+export function verifyRlnProof(db: Database.Database, proof: RLNProof): RlnVerifyResult {
   // Structural check: nullifier must be non-zero bytes32
   if (
     !proof.nullifier ||

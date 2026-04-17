@@ -5,14 +5,14 @@
 // The verify-attestation.mjs script (Agent D) MUST use the same canonicalize package to match
 // the hash. Any hand-rolled stringify would risk key-order divergence across engines.
 
-import { keccak256, concat, toBytes, toHex } from 'viem';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { nearAiAttestationBundleSchema } from '@bargo/shared';
+import type { DealId, NearAiAttestationBundle } from '@bargo/shared';
+import type { Hex } from '@bargo/shared';
 // @ts-ignore — canonicalize has no bundled types; we assert the return type
 import canonicalize from 'canonicalize';
-import { nearAiAttestationBundleSchema } from '@bargo/shared';
-import type { NearAiAttestationBundle, DealId } from '@bargo/shared';
-import type { Hex } from '@bargo/shared';
+import { concat, keccak256, toBytes, toHex } from 'viem';
 
 export interface FetchAttestationOpts {
   model: string;
@@ -25,7 +25,7 @@ export interface FetchAttestationOpts {
 export interface FetchedAttestation {
   bundle: NearAiAttestationBundle;
   bundleHash: Hex; // keccak256(canonical(bundle))
-  nonce: Hex;      // keccak256(dealId || completionId)
+  nonce: Hex; // keccak256(dealId || completionId)
 }
 
 /**
@@ -85,7 +85,9 @@ export async function fetchAttestation(opts: FetchAttestationOpts): Promise<Fetc
   const validated = nearAiAttestationBundleSchema.safeParse(raw);
   if (!validated.success) {
     const diff = JSON.stringify(validated.error.issues, null, 2);
-    throw new Error(`NEAR AI attestation bundle schema mismatch:\n${diff}\nRaw: ${JSON.stringify(raw)}`);
+    throw new Error(
+      `NEAR AI attestation bundle schema mismatch:\n${diff}\nRaw: ${JSON.stringify(raw)}`,
+    );
   }
 
   const bundle = validated.data;
@@ -140,7 +142,7 @@ export async function runStartupAttestationCheck(opts: {
   logger: { warn: (obj: object, msg: string) => void; info: (obj: object, msg: string) => void };
 }): Promise<void> {
   // Use a zero dealId + zero completionId for the dummy check
-  const dummyDealId = ('0x' + '00'.repeat(32)) as DealId;
+  const dummyDealId = `0x${'00'.repeat(32)}` as DealId;
   const dummyCompletionId = 'startup-check';
 
   try {

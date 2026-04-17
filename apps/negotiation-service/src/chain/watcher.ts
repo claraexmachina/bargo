@@ -3,13 +3,13 @@
 // On event: sets negotiations.state = 'completed', which fires the SQLite
 // purge trigger to NULL plaintext_min_sell / plaintext_max_buy / etc.
 
-import type { WatchContractEventReturnType } from 'viem';
 import { bargoEscrowAbi } from '@bargo/shared';
 import type { DealId } from '@bargo/shared';
-import { updateNegotiationState } from '../db/client.js';
 import type Database from 'better-sqlite3';
-import type { createChainClient } from './read.js';
 import type { FastifyBaseLogger } from 'fastify';
+import type { WatchContractEventReturnType } from 'viem';
+import { updateNegotiationState } from '../db/client.js';
+import type { createChainClient } from './read.js';
 
 type ChainClient = ReturnType<typeof createChainClient>;
 
@@ -40,7 +40,10 @@ export function startFundsReleasedWatcher(
           log.info({ dealId }, 'deal completed — plaintext purged by trigger');
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          log.error({ dealId, err: msg }, 'failed to mark negotiation completed after FundsReleased');
+          log.error(
+            { dealId, err: msg },
+            'failed to mark negotiation completed after FundsReleased',
+          );
         }
       }
     },

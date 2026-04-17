@@ -1,3 +1,6 @@
+import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import * as React from 'react';
 /**
  * Privacy invariant:
  * After the listing form submits, no reservation price (min price) value
@@ -5,17 +8,14 @@
  *
  * This tests that the form clears the masked price from state upon POST.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import * as React from 'react';
+import { describe, expect, it, vi } from 'vitest';
 
 // Minimal mocks — does not hit real api
 vi.mock('@/lib/api', () => ({
   usePostListing: () => ({
     mutateAsync: vi.fn().mockResolvedValue({
-      listingId: '0x' + '11'.repeat(32),
-      onchainTxHash: '0x' + '00'.repeat(32),
+      listingId: `0x${'11'.repeat(32)}`,
+      onchainTxHash: `0x${'00'.repeat(32)}`,
     }),
   }),
 }));

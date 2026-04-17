@@ -1,18 +1,24 @@
+import type { RLNProof } from '@bargo/shared';
+import { RLN_EPOCH_DURATION } from '@bargo/shared';
 /**
  * RLN proof stub structure test.
  * Verifies output matches the interface RLNProof from @bargo/shared.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import type { RLNProof } from '@bargo/shared';
-import { RLN_EPOCH_DURATION } from '@bargo/shared';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 // Provide localStorage stub for jsdom
 const storage: Record<string, string> = {};
 globalThis.localStorage = {
   getItem: (k: string) => storage[k] ?? null,
-  setItem: (k: string, v: string) => { storage[k] = v; },
-  removeItem: (k: string) => { delete storage[k]; },
-  clear: () => { Object.keys(storage).forEach((k) => delete storage[k]); },
+  setItem: (k: string, v: string) => {
+    storage[k] = v;
+  },
+  removeItem: (k: string) => {
+    delete storage[k];
+  },
+  clear: () => {
+    Object.keys(storage).forEach((k) => delete storage[k]);
+  },
   length: 0,
   key: () => null,
 };
@@ -20,7 +26,7 @@ globalThis.localStorage = {
 // crypto.getRandomValues stub
 if (!globalThis.crypto) {
   // @ts-expect-error -- node crypto
-  globalThis.crypto = await import('node:crypto').then(m => m.webcrypto);
+  globalThis.crypto = await import('node:crypto').then((m) => m.webcrypto);
 }
 
 const { buildRLNProof } = await import('../lib/rln.js');
@@ -29,8 +35,7 @@ const LISTING_ID = '0x1111111111111111111111111111111111111111111111111111111111
 
 describe('buildRLNProof', () => {
   beforeEach(() => {
-    storage['rln_sk_0xabc'] = undefined as unknown as string;
-    delete storage['rln_sk_0xabc'];
+    delete storage.rln_sk_0xabc;
   });
 
   it('returns correct RLNProof shape', () => {

@@ -4,21 +4,13 @@
 //
 // listingId: provided by caller (on-chain id from seller's registerListing tx).
 
-import type { FastifyInstance } from 'fastify';
 import { postListingRequestSchema } from '@bargo/shared';
-import type { ListingMeta, KarmaTier, ListingId } from '@bargo/shared';
-import {
-  insertListing,
-  getListingById,
-  listOpenListings,
-  bufferToHex,
-} from '../db/client.js';
+import type { KarmaTier, ListingId, ListingMeta } from '@bargo/shared';
 import type Database from 'better-sqlite3';
+import type { FastifyInstance } from 'fastify';
+import { bufferToHex, getListingById, insertListing, listOpenListings } from '../db/client.js';
 
-export async function listingRoutes(
-  app: FastifyInstance,
-  opts: { db: Database.Database },
-) {
+export async function listingRoutes(app: FastifyInstance, opts: { db: Database.Database }) {
   // GET /listings — public listing feed. Plaintext reservation columns never returned.
   app.get('/listings', async (request, reply) => {
     const q = request.query as { limit?: string; offset?: string };
@@ -60,7 +52,10 @@ export async function listingRoutes(
     const result = postListingRequestSchema.safeParse(request.body);
     if (!result.success) {
       return reply.code(400).send({
-        error: { code: 'bad-request', message: result.error.issues[0]?.message ?? 'Invalid request body' },
+        error: {
+          code: 'bad-request',
+          message: result.error.issues[0]?.message ?? 'Invalid request body',
+        },
       });
     }
 

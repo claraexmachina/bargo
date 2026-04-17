@@ -4,7 +4,7 @@
 // These helpers confirm the IDs exist on-chain by scanning recent event logs.
 
 import { bargoEscrowAbi } from '@bargo/shared';
-import type { ListingId, OfferId, Address } from '@bargo/shared';
+import type { Address, ListingId, OfferId } from '@bargo/shared';
 
 type ChainClient = ReturnType<typeof import('./read.js').createChainClient>;
 
@@ -32,7 +32,9 @@ export async function verifyListingOnChain(
   });
 
   if (logs.length === 0) {
-    const err = new Error(`ListingCreated event not found for listingId=${listingId} in last ${LOOKBACK_BLOCKS} blocks`);
+    const err = new Error(
+      `ListingCreated event not found for listingId=${listingId} in last ${LOOKBACK_BLOCKS} blocks`,
+    );
     (err as NodeJS.ErrnoException).code = 'onchain-listing-not-found';
     throw err;
   }
@@ -63,7 +65,9 @@ export async function verifyOfferOnChain(
   });
 
   if (logs.length === 0) {
-    const err = new Error(`OfferSubmitted event not found for offerId=${offerId} in last ${LOOKBACK_BLOCKS} blocks`);
+    const err = new Error(
+      `OfferSubmitted event not found for offerId=${offerId} in last ${LOOKBACK_BLOCKS} blocks`,
+    );
     (err as NodeJS.ErrnoException).code = 'onchain-offer-not-found';
     throw err;
   }

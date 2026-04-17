@@ -1,11 +1,11 @@
+import type { GetStatusResponse, Hex } from '@bargo/shared';
+import { render, screen } from '@testing-library/react';
 /**
  * NegotiationStatus: fail state must show only the fail message,
  * no price, condition text, or failureReason leak.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { NegotiationStatus } from '../../components/NegotiationStatus';
-import type { GetStatusResponse, Hex } from '@bargo/shared';
 
 // Mock useAttestationBundle (used by AttestationViewer inside NegotiationStatus)
 vi.mock('@/lib/api', () => ({
@@ -17,17 +17,17 @@ function hex(s: string): Hex {
 }
 
 const FAIL_STATUS: GetStatusResponse = {
-  negotiationId: hex('deadbeef' + '00'.repeat(28)),
+  negotiationId: hex(`deadbeef${'00'.repeat(28)}`),
   state: 'fail',
   failureReason: 'conditions_incompatible',
   updatedAt: 1700000000,
 };
 
 const AGREEMENT_STATUS: GetStatusResponse = {
-  negotiationId: hex('deadbeef' + '00'.repeat(28)),
+  negotiationId: hex(`deadbeef${'00'.repeat(28)}`),
   state: 'agreement',
   attestation: {
-    dealId: hex('deadbeef' + '00'.repeat(28)),
+    dealId: hex(`deadbeef${'00'.repeat(28)}`),
     listingId: hex('11'.repeat(32)),
     offerId: hex('22'.repeat(32)),
     agreedPrice: (725_000n * 10n ** 18n).toString(),
@@ -72,7 +72,7 @@ describe('NegotiationStatus — fail state', () => {
 describe('NegotiationStatus — running state', () => {
   it('shows bot-vs-bot animation, no price or condition literal text', () => {
     const runningStatus: GetStatusResponse = {
-      negotiationId: hex('deadbeef' + '00'.repeat(28)),
+      negotiationId: hex(`deadbeef${'00'.repeat(28)}`),
       state: 'running',
       updatedAt: 1700000000,
     };

@@ -3,7 +3,7 @@
 //   - conditionPairJsonSchema (re-export from nearai/client.ts)
 //   - matchConditions(seller, buyer) → compatible or incompatible
 
-import type { ConditionStruct, AgreedConditions } from '@bargo/shared';
+import type { AgreedConditions, ConditionStruct } from '@bargo/shared';
 
 export { conditionPairJsonSchema } from '../nearai/client.js';
 
@@ -50,10 +50,7 @@ function dayIndex(day: string): number {
  *
  * Empty array = "no preference"; single-side empty → compatible on that axis.
  */
-export function matchConditions(
-  seller: ConditionStruct,
-  buyer: ConditionStruct,
-): MatchResult {
+export function matchConditions(seller: ConditionStruct, buyer: ConditionStruct): MatchResult {
   // --- Location ---
   const sellerLoc = seller.location;
   const buyerLoc = buyer.location;

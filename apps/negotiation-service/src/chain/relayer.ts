@@ -3,10 +3,16 @@
 // Gas is estimated via linea_estimateGas so the tx is gasless when Status
 // Network's RLN prover + Karma tier allow it (paid gas otherwise).
 
-import { createWalletClient, createPublicClient, http, publicActions, encodeFunctionData } from 'viem';
+import { bargoEscrowAbi, hoodiChain } from '@bargo/shared';
+import type { DealId, Hex, ListingId, OfferId } from '@bargo/shared';
+import {
+  http,
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  publicActions,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { hoodiChain, bargoEscrowAbi } from '@bargo/shared';
-import type { Hex, DealId, ListingId, OfferId } from '@bargo/shared';
 import { lineaEstimateGas } from './lineaEstimateGas.js';
 
 export interface SubmitSettlementOpts {

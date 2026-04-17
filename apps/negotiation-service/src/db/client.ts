@@ -1,8 +1,8 @@
-import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { ListingId, OfferId, DealId, NearAiAttestation, KarmaTier } from '@bargo/shared';
+import { fileURLToPath } from 'node:url';
+import type { DealId, KarmaTier, ListingId, NearAiAttestation, OfferId } from '@bargo/shared';
+import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -123,7 +123,11 @@ export function getListingById(db: Database.Database, id: ListingId): ListingRow
   return stmt.get(hexToBuffer(id)) ?? null;
 }
 
-export function listOpenListings(db: Database.Database, limit: number, offset: number): ListingRow[] {
+export function listOpenListings(
+  db: Database.Database,
+  limit: number,
+  offset: number,
+): ListingRow[] {
   const stmt = db.prepare<[number, number], ListingRow>(
     `SELECT * FROM listings WHERE status = 'open' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
   );
@@ -160,7 +164,9 @@ export interface InsertOfferParams {
 }
 
 export function insertOffer(db: Database.Database, params: InsertOfferParams): void {
-  const stmt = db.prepare<[Buffer, Buffer, string, string, string, string, Buffer, number, number]>(`
+  const stmt = db.prepare<
+    [Buffer, Buffer, string, string, string, string, Buffer, number, number]
+  >(`
     INSERT INTO offers
       (id, listing_id, buyer, bid_price, plaintext_max_buy, plaintext_buyer_conditions,
        rln_nullifier, rln_epoch, status, created_at)

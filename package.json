@@ -3,10 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "packageManager": "pnpm@9.15.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "build": "pnpm -r build",
     "lint": "biome check .",

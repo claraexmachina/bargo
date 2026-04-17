@@ -7,10 +7,10 @@
 //   - canOffer → true (permissive, no blocking)
 //   - getActiveNegotiations → 0
 
-import { createPublicClient, http } from 'viem';
-import { hoodiChain, karmaReaderAbi, bargoEscrowAbi } from '@bargo/shared';
+import { bargoEscrowAbi, hoodiChain, karmaReaderAbi } from '@bargo/shared';
 import type { Address } from '@bargo/shared';
 import type { KarmaTier } from '@bargo/shared';
+import { http, createPublicClient } from 'viem';
 
 export function createChainClient(rpcUrl: string) {
   return createPublicClient({

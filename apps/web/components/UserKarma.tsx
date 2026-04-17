@@ -13,10 +13,10 @@
  * We use the well-known Hardhat/Anvil derivation order as defaults for demo.
  */
 
-import { useReadContract } from 'wagmi';
-import { karmaReaderAbi, ADDRESSES } from '@bargo/shared';
-import type { KarmaTier, Address } from '@bargo/shared';
 import { KarmaBadge } from '@/components/KarmaBadge';
+import { ADDRESSES, karmaReaderAbi } from '@bargo/shared';
+import type { Address, KarmaTier } from '@bargo/shared';
+import { useReadContract } from 'wagmi';
 
 // Deterministic demo tier map keyed by lowercase address.
 // Update these to match the actual addresses from your Seed.s.sol run.
@@ -28,8 +28,7 @@ const DEMO_TIER_MAP: Record<string, KarmaTier> = {
   '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc': 0, // Hardhat account[2] (Eve)
 };
 
-const KARMA_READER_ADDRESS = (ADDRESSES[374] as { karmaReader?: Address } | undefined)
-  ?.karmaReader;
+const KARMA_READER_ADDRESS = (ADDRESSES[374] as { karmaReader?: Address } | undefined)?.karmaReader;
 
 interface UserKarmaProps {
   address: Address | undefined;
@@ -54,7 +53,7 @@ export function UserKarma({ address, showLabel, className }: UserKarmaProps) {
 
   let tier: KarmaTier;
   if (contractTier !== undefined) {
-    tier = (Number(contractTier) as KarmaTier);
+    tier = Number(contractTier) as KarmaTier;
   } else {
     tier = DEMO_TIER_MAP[address.toLowerCase()] ?? 0;
   }

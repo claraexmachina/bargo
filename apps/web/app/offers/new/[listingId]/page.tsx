@@ -1,22 +1,22 @@
 'use client';
 
-import * as React from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
-import { parseEventLogs, encodeFunctionData } from 'viem';
-import { toast } from 'sonner';
-import type { ListingId, Hex } from '@bargo/shared';
-import { bargoEscrowAbi, ADDRESSES } from '@bargo/shared';
-import { WalletConnect } from '@/components/WalletConnect';
-import { UserKarma } from '@/components/UserKarma';
 import { ConditionInput } from '@/components/ConditionInput';
 import { PriceInput } from '@/components/PriceInput';
+import { UserKarma } from '@/components/UserKarma';
+import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useListing, usePostOffer } from '@/lib/api';
-import { buildRLNProof } from '@/lib/rln';
-import { krwToWei, formatKRW } from '@/lib/format';
+import { formatKRW, krwToWei } from '@/lib/format';
 import { lineaEstimateGas } from '@/lib/linea-estimate';
+import { buildRLNProof } from '@/lib/rln';
+import type { Hex, ListingId } from '@bargo/shared';
+import { ADDRESSES, bargoEscrowAbi } from '@bargo/shared';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import * as React from 'react';
+import { toast } from 'sonner';
+import { encodeFunctionData, parseEventLogs } from 'viem';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 
 const HOODI_CHAIN_ID = 374;
 
@@ -24,7 +24,7 @@ export default function NewOfferPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const listingId = params['listingId'] as ListingId;
+  const listingId = params.listingId as ListingId;
   const { address, isConnected, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
@@ -43,11 +43,7 @@ export default function NewOfferPage() {
   const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.bargoEscrow;
 
   const canSubmit =
-    isConnected &&
-    !!address &&
-    bidPriceKrw.length > 0 &&
-    maxPriceKrw.length > 0 &&
-    !isSubmitting;
+    isConnected && !!address && bidPriceKrw.length > 0 && maxPriceKrw.length > 0 && !isSubmitting;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,7 +103,7 @@ export default function NewOfferPage() {
       toast.info('트랜잭션 확인 중...');
 
       // Step 2: Wait for receipt + parse OfferSubmitted event
-      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash });
+      const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
       const logs = parseEventLogs({
         abi: bargoEscrowAbi,
@@ -215,7 +211,10 @@ export default function NewOfferPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label htmlFor="bid-price" className="text-sm font-medium">
-                제안가 (공개) <span className="text-destructive" aria-hidden="true">*</span>
+                제안가 (공개){' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
               </label>
               <PriceInput
                 id="bid-price"
@@ -228,7 +227,10 @@ export default function NewOfferPage() {
 
             <div className="space-y-1">
               <label htmlFor="max-price" className="text-sm font-medium">
-                최대가 — 마지노선 (비공개) <span className="text-destructive" aria-hidden="true">*</span>
+                최대가 — 마지노선 (비공개){' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
               </label>
               <PriceInput
                 id="max-price"
@@ -239,7 +241,8 @@ export default function NewOfferPage() {
                 label="최대 구매가 (원)"
               />
               <p className="text-sm text-muted-foreground">
-                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수 없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
+                이 가격은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 상대방은 절대 볼 수
+                없고, 운영자는 합의 중 ~15초간만 보며 거래 완료 즉시 자동 삭제합니다.
               </p>
             </div>
           </CardContent>
@@ -265,12 +268,15 @@ export default function NewOfferPage() {
 
         {/* RLN notice */}
         <div className="rounded-md bg-muted/50 border px-4 py-3 text-xs text-muted-foreground">
-          RLN (Rate Limiting Nullifier) proof가 자동으로 첨부됩니다.
-          동일 매물에 5분 내 3회 초과 오퍼 시 거부됩니다 (스팸 방지).
+          RLN (Rate Limiting Nullifier) proof가 자동으로 첨부됩니다. 동일 매물에 5분 내 3회 초과
+          오퍼 시 거부됩니다 (스팸 방지).
         </div>
 
         {/* Bottom bar */}
-        <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div
+          className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
           <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
             취소
           </Button>

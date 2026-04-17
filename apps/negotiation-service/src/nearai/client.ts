@@ -3,8 +3,8 @@
 // Auth: Bearer ${NEAR_AI_API_KEY}
 // Model: qwen3-30b (configurable via NEAR_AI_MODEL env)
 
-import OpenAI from 'openai';
 import type { ConditionStruct } from '@bargo/shared';
+import OpenAI from 'openai';
 
 // --- Custom error ---
 
@@ -133,7 +133,8 @@ ${opts.buyerText}`;
         ],
         response_format: {
           type: 'json_schema',
-          json_schema: conditionPairJsonSchema as unknown as OpenAI.ResponseFormatJSONSchema['json_schema'],
+          json_schema:
+            conditionPairJsonSchema as unknown as OpenAI.ResponseFormatJSONSchema['json_schema'],
         },
       },
       { signal: timeoutSignal },

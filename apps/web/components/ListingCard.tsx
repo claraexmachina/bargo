@@ -1,8 +1,8 @@
-import Link from 'next/link';
-import type { KarmaTier, ListingPublic } from '@bargo/shared';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { KarmaBadge } from '@/components/KarmaBadge';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { formatKRW } from '@/lib/format';
+import type { KarmaTier, ListingPublic } from '@bargo/shared';
+import Link from 'next/link';
 
 interface ListingCardProps {
   listing: ListingPublic;
@@ -17,7 +17,10 @@ const TIER_REQUIRED_LABEL: Record<KarmaTier, string> = {
 
 export function ListingCard({ listing }: ListingCardProps) {
   return (
-    <Link href={`/listings/${listing.id}`} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
+    <Link
+      href={`/listings/${listing.id}`}
+      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+    >
       <Card className="h-full hover:border-primary/50 transition-colors">
         {listing.itemMeta.images[0] && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -32,7 +35,9 @@ export function ListingCard({ listing }: ListingCardProps) {
             <h3 className="font-semibold line-clamp-2">{listing.itemMeta.title}</h3>
           </div>
           <p className="text-xl font-bold text-primary">{formatKRW(listing.askPrice)}</p>
-          <p className="text-sm text-muted-foreground line-clamp-2">{listing.itemMeta.description}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {listing.itemMeta.description}
+          </p>
         </CardContent>
         <CardFooter className="flex items-center justify-between pt-0">
           <KarmaBadge tier={listing.seller.slice(0, 2) === '0x' ? 0 : 0} showLabel={false} />

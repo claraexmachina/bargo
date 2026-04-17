@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import { ConditionInput, containsSensitiveData } from '../../components/ConditionInput';
 
 // ─── Unit tests: sensitive data detection (no DOM) ──────────────────────────
@@ -29,13 +29,7 @@ describe('containsSensitiveData', () => {
 
 describe('ConditionInput component', () => {
   it('renders with placeholder text', () => {
-    render(
-      <ConditionInput
-        value=""
-        onChange={() => {}}
-        placeholder="강남/송파 직거래만"
-      />,
-    );
+    render(<ConditionInput value="" onChange={() => {}} placeholder="강남/송파 직거래만" />);
     expect(screen.getByPlaceholderText('강남/송파 직거래만')).toBeInTheDocument();
   });
 
@@ -67,9 +61,7 @@ describe('ConditionInput component', () => {
       textarea.dispatchEvent(event);
     });
 
-    expect(
-      screen.getByText(/이메일·전화번호 등 개인정보가 감지되었습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/이메일·전화번호 등 개인정보가 감지되었습니다/)).toBeInTheDocument();
   });
 
   it('shows sensitive warning when paste event fires with phone number', async () => {
@@ -85,9 +77,7 @@ describe('ConditionInput component', () => {
       textarea.dispatchEvent(event);
     });
 
-    expect(
-      screen.getByText(/이메일·전화번호 등 개인정보가 감지되었습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/이메일·전화번호 등 개인정보가 감지되었습니다/)).toBeInTheDocument();
   });
 
   it('does not warn for normal condition text paste', async () => {
@@ -103,8 +93,6 @@ describe('ConditionInput component', () => {
       textarea.dispatchEvent(event);
     });
 
-    expect(
-      screen.queryByText(/이메일·전화번호 등 개인정보/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/이메일·전화번호 등 개인정보/)).not.toBeInTheDocument();
   });
 });

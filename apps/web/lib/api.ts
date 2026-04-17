@@ -16,10 +16,9 @@ import type {
   PostOfferRequest,
   PostOfferResponse,
 } from '@bargo/shared';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_NEGOTIATION_SERVICE_URL ?? 'http://localhost:3001';
+const BASE_URL = process.env.NEXT_PUBLIC_NEGOTIATION_SERVICE_URL ?? 'http://localhost:3001';
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -109,6 +108,6 @@ export function useAttestationBundle(dealId: DealId | null) {
     queryKey: ['attestation-bundle', dealId],
     queryFn: () => fetchAttestationBundle(dealId!),
     enabled: dealId !== null,
-    staleTime: Infinity, // attestation bundle never changes once settled
+    staleTime: Number.POSITIVE_INFINITY, // attestation bundle never changes once settled
   });
 }

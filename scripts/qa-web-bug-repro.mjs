@@ -25,7 +25,8 @@ function randHex32() {
 
 async function j(method, path, body) {
   const r = await fetch(BASE + path, {
-    method, headers: { 'content-type': 'application/json' },
+    method,
+    headers: { 'content-type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: r.status, body: r.ok ? await r.json() : await r.text() };
@@ -53,7 +54,9 @@ async function main() {
 
   const listingRes = await j('POST', '/listing', listingBody);
   if (listingRes.status === 201) {
-    console.log('[PASS] POST /listing accepted (extra V1 fields ignored or rejected — 201 means plaintext path works)');
+    console.log(
+      '[PASS] POST /listing accepted (extra V1 fields ignored or rejected — 201 means plaintext path works)',
+    );
     // Verify the response does not echo back enc* fields
     const body = JSON.stringify(listingRes.body);
     if (body.includes('encMinSell') || body.includes('encSellerConditions')) {
@@ -64,7 +67,9 @@ async function main() {
   } else if (listingRes.status === 400) {
     console.log('[PASS] POST /listing rejected V1 enc* fields with 400 (strict schema)');
   } else {
-    console.log(`[FAIL] Unexpected status ${listingRes.status}: ${JSON.stringify(listingRes.body)}`);
+    console.log(
+      `[FAIL] Unexpected status ${listingRes.status}: ${JSON.stringify(listingRes.body)}`,
+    );
     process.exit(1);
   }
 
@@ -81,7 +86,9 @@ async function main() {
     onchainTxHash: randHex32(),
   });
   if (listing2.status !== 201) {
-    console.log(`[FAIL] POST /listing with plaintextMinSell returned ${listing2.status} — plaintext path broken`);
+    console.log(
+      `[FAIL] POST /listing with plaintextMinSell returned ${listing2.status} — plaintext path broken`,
+    );
     process.exit(1);
   }
   console.log('[PASS] POST /listing with plaintextMinSell accepted (201)');
@@ -97,15 +104,17 @@ async function main() {
     plaintextBuyerConditions: '강남 ok, anytime',
     rlnProof: {
       epoch: 42,
-      proof: '0x' + 'aa'.repeat(32),
+      proof: `0x${'aa'.repeat(32)}`,
       nullifier: randHex32(),
-      signalHash: '0x' + '22'.repeat(32),
-      rlnIdentityCommitment: '0x' + '33'.repeat(32),
+      signalHash: `0x${'22'.repeat(32)}`,
+      rlnIdentityCommitment: `0x${'33'.repeat(32)}`,
     },
     onchainTxHash: randHex32(),
   });
   if (offerRes.status !== 202) {
-    console.log(`[FAIL] POST /offer with plaintextMaxBuy returned ${offerRes.status}: ${JSON.stringify(offerRes.body)}`);
+    console.log(
+      `[FAIL] POST /offer with plaintextMaxBuy returned ${offerRes.status}: ${JSON.stringify(offerRes.body)}`,
+    );
     process.exit(1);
   }
   console.log('[PASS] POST /offer with plaintextMaxBuy accepted (202)');
@@ -124,14 +133,16 @@ async function main() {
   }
 
   if (!statusBody) {
-    console.log('[SKIP] Status did not reach terminal state in 15s — manually verify privacy invariant');
+    console.log(
+      '[SKIP] Status did not reach terminal state in 15s — manually verify privacy invariant',
+    );
   } else {
     const bodyStr = JSON.stringify(statusBody);
     const leaks =
       bodyStr.includes('600000') || // plaintextMinSell
       bodyStr.includes('750000') || // plaintextMaxBuy
       bodyStr.includes('강남 only') || // seller conditions
-      bodyStr.includes('anytime');   // buyer conditions
+      bodyStr.includes('anytime'); // buyer conditions
     if (leaks) {
       console.log('[FAIL] GET /status leaks plaintext reservation data — privacy regression!');
       process.exit(1);

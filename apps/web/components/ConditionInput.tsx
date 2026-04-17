@@ -1,16 +1,16 @@
 'use client';
 
-import * as React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import * as React from 'react';
 
 const MAX_BYTES = 2048;
 
 // Warn when user pastes obviously sensitive data
 const SENSITIVE_PATTERNS = [
-  /[^\s@]+@[^\s@]+\.[^\s@]{2,}/,  // email (handles Korean chars before @)
-  /01[016789]-?\d{3,4}-?\d{4}/,   // Korean mobile
-  /\d{6}-\d{7}/,                   // Korean ID number pattern
+  /[^\s@]+@[^\s@]+\.[^\s@]{2,}/, // email (handles Korean chars before @)
+  /01[016789]-?\d{3,4}-?\d{4}/, // Korean mobile
+  /\d{6}-\d{7}/, // Korean ID number pattern
 ];
 
 /** Exported for unit testing */
@@ -72,17 +72,22 @@ export function ConditionInput({
         placeholder={placeholder}
         disabled={disabled}
         rows={4}
-        className={cn(isOverLimit && 'border-destructive focus-visible:ring-destructive', className)}
+        className={cn(
+          isOverLimit && 'border-destructive focus-visible:ring-destructive',
+          className,
+        )}
         aria-describedby={id ? `${id}-hint` : undefined}
       />
       <div className="flex items-start justify-between gap-2">
         <div id={id ? `${id}-hint` : undefined} className="space-y-0.5">
           <p className="text-xs text-muted-foreground">
-            이 조건은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 운영자는 합의 직후 plaintext 자동 purge. 상대방은 절대 볼 수 없습니다.
+            이 조건은 <strong>NEAR AI TEE 안에서 LLM이 처리</strong>합니다. 운영자는 합의 직후
+            plaintext 자동 purge. 상대방은 절대 볼 수 없습니다.
           </p>
           {sensitiveWarning && (
             <p className="text-xs text-destructive" role="alert">
-              이메일·전화번호 등 개인정보가 감지되었습니다. 조건 텍스트에 개인정보를 포함하지 마세요.
+              이메일·전화번호 등 개인정보가 감지되었습니다. 조건 텍스트에 개인정보를 포함하지
+              마세요.
             </p>
           )}
         </div>

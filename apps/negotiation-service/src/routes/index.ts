@@ -1,13 +1,13 @@
 // Route registration — wires all sub-routers into the Fastify instance.
 
-import type { FastifyInstance } from 'fastify';
-import type Database from 'better-sqlite3';
 import type { Address } from '@bargo/shared';
+import type Database from 'better-sqlite3';
+import type { FastifyInstance } from 'fastify';
+import type { createChainClient } from '../chain/read.js';
+import { attestationRoutes } from './attestation.js';
 import { listingRoutes } from './listing.js';
 import { offerRoutes } from './offer.js';
 import { statusRoutes } from './status.js';
-import { attestationRoutes } from './attestation.js';
-import { createChainClient } from '../chain/read.js';
 
 // ChainDeps is used in offer.ts to avoid circular imports
 export interface ChainDeps {

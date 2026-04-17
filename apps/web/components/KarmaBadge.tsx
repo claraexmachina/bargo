@@ -1,8 +1,8 @@
 'use client';
 
-import type { KarmaTier, Address } from '@bargo/shared';
 import { Badge } from '@/components/ui/badge';
 import { karmaTierName } from '@/lib/format';
+import type { Address, KarmaTier } from '@bargo/shared';
 
 const TIER_VARIANT = {
   0: 'newcomer',

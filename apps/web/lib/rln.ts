@@ -14,7 +14,7 @@
  */
 import type { Hex, ListingId, RLNProof } from '@bargo/shared';
 import { RLN_EPOCH_DURATION } from '@bargo/shared';
-import { keccak256, encodeAbiParameters, parseAbiParameters, pad } from 'viem';
+import { encodeAbiParameters, keccak256, pad, parseAbiParameters } from 'viem';
 
 const IDENTITY_SK_KEY = (address: string) => `rln_sk_${address.toLowerCase()}`;
 

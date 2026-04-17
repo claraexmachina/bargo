@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function HomePage() {
   return (
@@ -59,12 +59,26 @@ export default function HomePage() {
           작동 방식
         </p>
         {[
-          { icon: '🔐', title: '비공개 가격 입력', desc: 'NEAR AI TEE 보호 + 거래 완료 시 자동 삭제. 상대방은 절대 볼 수 없습니다.' },
-          { icon: '🤖', title: 'TEE 안에서 협상', desc: 'NEAR AI Cloud TEE의 qwen3-30b LLM이 조건 파싱, ZOPA 알고리즘으로 가격 합의' },
-          { icon: '⛓️', title: '온체인 에스크로', desc: 'Status Network 가스리스 tx, Karma 신뢰, 만남 QR 인증' },
+          {
+            icon: '🔐',
+            title: '비공개 가격 입력',
+            desc: 'NEAR AI TEE 보호 + 거래 완료 시 자동 삭제. 상대방은 절대 볼 수 없습니다.',
+          },
+          {
+            icon: '🤖',
+            title: 'TEE 안에서 협상',
+            desc: 'NEAR AI Cloud TEE의 qwen3-30b LLM이 조건 파싱, ZOPA 알고리즘으로 가격 합의',
+          },
+          {
+            icon: '⛓️',
+            title: '온체인 에스크로',
+            desc: 'Status Network 가스리스 tx, Karma 신뢰, 만남 QR 인증',
+          },
         ].map((step) => (
           <div key={step.title} className="flex items-start gap-3">
-            <span className="text-2xl" aria-hidden="true">{step.icon}</span>
+            <span className="text-2xl" aria-hidden="true">
+              {step.icon}
+            </span>
             <div>
               <p className="font-medium text-sm">{step.title}</p>
               <p className="text-xs text-muted-foreground">{step.desc}</p>

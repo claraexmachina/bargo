@@ -17,16 +17,16 @@ const FIXTURE_PATH = new URL('./fixtures/sample-attestation.json', import.meta.u
 
 function canonicalize(v) {
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
-  if (Array.isArray(v)) return '[' + v.map(canonicalize).join(',') + ']';
+  if (Array.isArray(v)) return `[${v.map(canonicalize).join(',')}]`;
   const keys = Object.keys(v).sort();
-  return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonicalize(v[k])).join(',') + '}';
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(v[k])}`).join(',')}}`;
 }
 
 function hexToBytes(hex) {
   const h = hex.startsWith('0x') ? hex.slice(2) : hex;
   const bytes = new Uint8Array(h.length / 2);
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+    bytes[i] = Number.parseInt(h.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
 }
@@ -58,7 +58,8 @@ async function main() {
   // ── Check 2: signing_key is an uncompressed secp256k1 point ───────────────
   try {
     const pubKeyBytes = hexToBytes(bundle.signing_key);
-    if (pubKeyBytes[0] !== 0x04) throw new Error(`expected uncompressed prefix 0x04, got 0x${pubKeyBytes[0].toString(16)}`);
+    if (pubKeyBytes[0] !== 0x04)
+      throw new Error(`expected uncompressed prefix 0x04, got 0x${pubKeyBytes[0].toString(16)}`);
     if (pubKeyBytes.length !== 65) throw new Error(`expected 65 bytes, got ${pubKeyBytes.length}`);
     pass('signing_key is valid uncompressed secp256k1 point');
   } catch (e) {

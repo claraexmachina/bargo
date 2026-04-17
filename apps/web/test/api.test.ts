@@ -1,16 +1,16 @@
+import type {
+  GetStatusResponse,
+  Hex,
+  NearAiAttestation,
+  PostListingRequest,
+  PostOfferRequest,
+  RLNProof,
+} from '@bargo/shared';
 /**
  * Type-level test: plaintext DTOs compile correctly with @bargo/shared types.
  * These tests verify that the V2 API shapes are used consistently.
  */
-import { describe, it, expect } from 'vitest';
-import type {
-  PostListingRequest,
-  PostOfferRequest,
-  GetStatusResponse,
-  NearAiAttestation,
-  RLNProof,
-  Hex,
-} from '@bargo/shared';
+import { describe, expect, it } from 'vitest';
 
 function hex(s: string): Hex {
   return `0x${s}` as Hex;
