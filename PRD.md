@@ -71,18 +71,18 @@ P2P 중고거래 협상은 **정보 비대칭** 때문에 비효율적이다.
 > 판매자는 매물 정보, 희망가, 최저가(비공개), **자연어 조건**(예: *"강남/송파 직거래만, 평일 19시 이후, 박스 없음"*)을 입력하고 리스팅을 발행한다.
 
 Acceptance:
-- [ ] 최저가 + 자연어 조건은 plaintext로 HTTPS 전송; 서비스는 합의 후 자동 purge
-- [ ] 상대방에게 절대 노출 안 됨 (API response에 plaintext 필드 없음)
+- [ ] 최저가 + 자연어 조건은 **서비스 X25519 pubkey로 sealed(암호화)** 후 전송; plaintext는 서비스 내부 ephemeral 메모리에서만 존재 (~10ms), DB/로그에 기록 안 됨
+- [ ] 상대방에게 절대 노출 안 됨 (API response에 plaintext 필드 없음; enc_* blob만 저장)
 - [ ] 리스팅 ID가 온체인 이벤트로 발행
 
 **US-2: 구매자 오퍼 (가격 + 자연어 조건)**
 > 구매자는 매물을 보고 희망가, 최대가(비공개), 자연어 조건(예: *"강남 가능, 토요일만 됨, 카드결제 가능"*)을 입력하여 협상을 트리거한다.
 
 Acceptance:
-- [ ] 최대가 + 자연어 조건은 plaintext로 HTTPS 전송; 서비스는 합의 후 자동 purge. on-chain offerId 필수 첨부
+- [ ] 최대가 + 자연어 조건은 **sealed blob으로 전송**; on-chain offerId 필수 첨부
 - [ ] **RLN proof 첨부** (sybil 봇 방지)
 - [ ] **사용자 Karma 티어 ≥ 매물 요구 티어** 컨트랙트가 검증 (요구 티어 미달 시 reverts)
-- [ ] 트리거 시 서비스가 NEAR AI TEE로 양측 plaintext 전달 (직접 전달, 암호화 불필요)
+- [ ] 트리거 시 서비스가 ephemeral decrypt 후 NEAR AI TEE로 전달 (plaintext는 in-memory only, no wire plaintext)
 - [ ] 15초 이내 결과 반환 (LLM 호출 포함)
 
 **US-3: TEE 협상 (LLM + ZOPA)**
@@ -133,94 +133,105 @@ Acceptance:
 
 ---
 
-### 2.6 시스템 아키텍처 (V2)
+### 2.6 시스템 아키텍처 (V3)
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                Bargo PWA (Next.js, wagmi)                 │
-│  Seller View │ Listings │ Offer View │ Meetup Confirmation │
-└─────┬───────────────────────────────────────┬──────────────┘
-      │ HTTPS (plaintext DTOs)                │ RPC (gasless)
-      │                                       │
-┌─────▼──────────────────────┐   ┌────────────▼─────────────┐
-│  Negotiation Service        │   │  Status Network Hoodi    │
-│  (Node.js / Fastify)        │   │                          │
-│  - Listing/Offer registry   │   │  BargoEscrow.sol        │
-│  - RLN nullifier check      │   │   ├── registerListing()  │
-│  - negotiate/engine.ts      │   │   ├── submitOffer()      │
-│  - Auto-purge plaintext     │   │   │   (Karma gate +      │
-│    on COMPLETED             │   │   │    RLN verify)       │
-└─────┬──────────────────────┘   │   ├── settleNegotiation()│
-      │ HTTPS /v1/chat/completions│   │   (relayer-only)     │
-┌─────▼──────────────────────┐   │   ├── lockEscrow()       │
-│  NEAR AI Cloud TEE         │   │   ├── confirmMeetup()    │
-│  (Intel TDX + NVIDIA GPU)  │   │   └── reportNoShow()     │
-│  qwen3-30b LLM             │   │                          │
-│  GET /v1/attestation/report│   │  KarmaReader.sol         │
-│  → TDX quote + GPU evidence│   │  RLNVerifier.sol         │
-└─────┬──────────────────────┘   └──────────────────────────┘
-      │ nearAiAttestationHash
-┌─────▼──────────────────────┐
-│  chain/relayer.ts          │
-│  settleNegotiation(        │
-│    listingId, offerId,     │
-│    agreedPrice,            │
-│    agreedConditionsHash,   │
-│    nearAiAttestationHash)  │
-└────────────────────────────┘
+Web (Next.js PWA) ──[sealed blob]──► Negotiation Service (Fastify + SQLite, V3 ephemeral decrypt)
+                                              │
+                                    ┌─────────▼─────────────────────────┐
+                                    │  NEAR AI Cloud (Intel TDX + GPU)  │
+                                    │  qwen3-30b LLM, /v1/attestation   │
+                                    └─────────┬─────────────────────────┘
+                                              │ nearAiAttestationHash
+                                    ┌─────────▼─────────────────────────┐
+                                    │  Status Network Hoodi              │
+                                    │  BargoEscrow, KarmaReader,         │
+                                    │  RLNVerifier                       │
+                                    └────────────────────────────────────┘
 ```
 
 **경계·계약**:
-- **PWA ↔ Negotiation Service**: REST 5개 (`POST /listing`, `POST /offer` (RLN proof 포함), `GET /status/:id`, `GET /attestation/:dealId`, `POST /attestation-receipt`). `GET /tee-pubkey` **삭제됨** (V1 artifact).
-- **Service ↔ NEAR AI**: OpenAI SDK, `cloud-api.near.ai/v1`, model `qwen3-30b`, `response_format: json_schema strict: true`.
+- **PWA ↔ Negotiation Service**: REST 8개 (`GET /service-pubkey`, `POST /listing`, `POST /offer` (RLN proof 포함), `GET /status/:id`, `GET /attestation/:dealId`, `POST /attestation-receipt`, `POST /intents`, `GET /intent-matches`). 예약가·조건은 sealed blob으로만 전송 — plaintext wire 없음.
+- **Service ↔ NEAR AI**: OpenAI SDK, `cloud-api.near.ai/v1`, model `qwen3-30b`, `response_format: json_schema strict: true`. Plaintext는 ephemeral decrypt 후 in-memory에서만 NEAR AI prompt로 전달.
 - **Relayer → Contract**: `settleNegotiation(listingId, offerId, agreedPrice, agreedConditionsHash, nearAiAttestationHash)` — `onlyAttestationRelayer` modifier.
 - **Contract ↔ Client**: 이벤트 `ListingCreated`, `OfferSubmitted`, `NegotiationSettled` (indexed `nearAiAttestationHash`), `EscrowLocked`, `MeetupConfirmed`, `NoShowReported`.
 
-### 2.7 데이터 모델 (V2)
+### 2.7 데이터 모델 (V3)
 
-**Off-chain (Negotiation Service, SQLite)**:
+**Off-chain (Negotiation Service, SQLite — V3)**:
+
+V3 스키마에는 plaintext 컬럼이 없음. 예약가·조건은 AEAD-protected `enc_*` blob으로만 저장.
+
 ```
 Listing {
-  id, seller, item_meta_json, ask_price,
-  plaintext_min_sell TEXT,          -- NULLed on COMPLETED
-  plaintext_seller_conditions TEXT, -- NULLed on COMPLETED
-  required_karma_tier, status
+  id BLOB,                         -- bytes32 on-chain listing ID
+  seller TEXT,
+  required_karma_tier INTEGER,
+  item_meta_json TEXT,             -- public metadata (title, category, images)
+  enc_min_sell_json TEXT,          -- JSON(EncryptedBlob) sealed to service pubkey
+  enc_seller_conditions_json TEXT, -- JSON(EncryptedBlob) sealed to service pubkey
+  status TEXT,                     -- 'open'|'negotiating'|'settled'|'completed'|'cancelled'
+  onchain_tx_hash TEXT,
+  created_at INTEGER
 }
 
 Offer {
-  id, listing_id, buyer, bid_price,
-  plaintext_max_buy TEXT,           -- NULLed on COMPLETED
-  plaintext_buyer_conditions TEXT,  -- NULLed on COMPLETED
-  rln_nullifier, status
+  id BLOB,
+  listing_id BLOB,
+  buyer TEXT,
+  enc_max_buy_json TEXT,           -- JSON(EncryptedBlob)
+  enc_buyer_conditions_json TEXT,  -- JSON(EncryptedBlob)
+  rln_nullifier BLOB,
+  rln_epoch INTEGER,
+  status TEXT,                     -- 'pending'|'matched'|'failed'|'withdrawn'
+  created_at INTEGER
 }
 
 Negotiation {
-  id, listing_id, offer_id,
-  state,                            -- queued|running|agreement|fail|settled
-  near_ai_attestation_hash,         -- keccak256(canonical(bundle))
-  agreed_conditions_hash,           -- keccak256(canonical(agreedConditions))
-  agreed_conditions_json,
-  agreed_price,
-  model_id,                         -- "qwen3-30b"
-  completion_id,                    -- NEAR AI chat_completion_id
-  attestation_bundle_path,          -- ./data/attestations/<dealId>.json
-  onchain_tx_hash,
-  failure_reason,
-  settled_at
+  id BLOB,                         -- keccak256(listingId || offerId)
+  listing_id BLOB,
+  offer_id BLOB,
+  state TEXT,                      -- queued|running|agreement|fail|settled
+  near_ai_attestation_hash TEXT,   -- keccak256(canonical(bundle))
+  agreed_conditions_hash TEXT,     -- keccak256(canonical(agreedConditions))
+  agreed_conditions_json TEXT,     -- AgreedConditions JSON (public — meetup result)
+  model_id TEXT,                   -- "qwen3-30b"
+  completion_id TEXT,              -- NEAR AI chat_completion_id
+  attestation_bundle_path TEXT,    -- ./data/attestations/<dealId>.json
+  onchain_tx_hash TEXT,
+  failure_reason TEXT,
+  created_at INTEGER,
+  updated_at INTEGER
 }
 
--- Auto-purge trigger (SQLite, fires on state → 'completed'):
--- UPDATE listings SET plaintext_min_sell=NULL, plaintext_seller_conditions=NULL WHERE id=?
--- UPDATE offers SET plaintext_max_buy=NULL, plaintext_buyer_conditions=NULL WHERE id=?
+-- Standing Intents (buyer auto-discovery)
+Intent {
+  id BLOB,
+  buyer TEXT,
+  enc_max_buy_json TEXT,           -- sealed budget ceiling
+  enc_buyer_conditions_json TEXT,  -- sealed natural-language conditions (INTENT_CONTEXT_AAD)
+  filters_json TEXT,               -- public: category, requiredKarmaTierCeiling
+  expires_at INTEGER,
+  active INTEGER,
+  created_at INTEGER
+}
+
+IntentMatch {
+  intent_id BLOB,
+  listing_id BLOB,
+  score TEXT,                      -- 'match'|'likely'|'uncertain'
+  match_reason TEXT,               -- short public explanation (no raw conditions)
+  matched_at INTEGER,
+  acknowledged INTEGER
+}
 ```
 
-**On-chain (BargoEscrow, V2)**:
+**On-chain (BargoEscrow, V3)**:
 ```solidity
 struct Listing {
   address seller;
-  uint256 askPrice;
-  uint8   requiredKarmaTier;
-  bytes32 itemMetaHash;     // keccak256(JSON.stringify(itemMeta))
+  uint8   requiredKarmaTier;  -- no askPrice — sealed-bid model
+  bytes32 itemMetaHash;       -- keccak256(JSON.stringify(itemMeta))
   uint64  createdAt;
   bool    active;
 }
@@ -230,83 +241,103 @@ struct Deal {
   bytes32 offerId;
   address seller;
   address buyer;
-  uint256 agreedPrice;
-  bytes32 agreedConditionsHash;   // keccak256(canonical(agreedConditions))
-  bytes32 nearAiAttestationHash;  // keccak256(canonical(attestation bundle))
-  DealState state;                // NONE|PENDING|LOCKED|COMPLETED|NOSHOW|REFUNDED
+  uint256 agreedPrice;              -- only price ever revealed (on settlement)
+  bytes32 agreedConditionsHash;     -- keccak256(canonical(agreedConditions))
+  bytes32 nearAiAttestationHash;    -- keccak256(canonical(attestation bundle))
+  DealState state;                  -- NONE|PENDING|LOCKED|COMPLETED|NOSHOW|REFUNDED
   uint64  createdAt;
   uint64  lockedUntil;
 }
 ```
 
-### 2.8 협상 알고리즘 (TypeScript, V2)
+### 2.8 협상 알고리즘 (TypeScript, V3)
 
-서비스에 `services/tee/` 디렉토리는 존재하지 않음. 협상은 `apps/negotiation-service/src/negotiate/engine.ts`에서 처리.
+협상은 `apps/negotiation-service/src/negotiate/engine.ts`에서 처리. V3 핵심 변화: plaintext는 ephemeral decrypt 이후 in-memory에서만 존재.
 
 ```ts
-// negotiate/engine.ts (pseudocode)
-async function runNegotiation(listing: Listing, offer: Offer): Promise<NegotiationResult> {
-  // 1. ZOPA 사전 체크 (LLM 호출 전)
-  if (BigInt(offer.plaintextMaxBuy) < BigInt(listing.plaintextMinSell)) {
+// negotiate/engine.ts (pseudocode — V3)
+async function runNegotiation(
+  listingRow: ListingRow,  // DB row: enc_min_sell_json, enc_seller_conditions_json
+  offerRow: OfferRow,      // DB row: enc_max_buy_json, enc_buyer_conditions_json
+): Promise<NegotiationResult> {
+
+  // 1. Ephemeral decrypt — plaintext exists only in this returned object.
+  //    MUST NOT be logged, stored, or passed beyond the NEAR AI call.
+  const plain = decryptReservationEphemeral({
+    serviceDecryptSk,
+    listingId: listingRow.id,
+    encMinSell: JSON.parse(listingRow.enc_min_sell_json),
+    encSellerConditions: JSON.parse(listingRow.enc_seller_conditions_json),
+    encMaxBuy: JSON.parse(offerRow.enc_max_buy_json),
+    encBuyerConditions: JSON.parse(offerRow.enc_buyer_conditions_json),
+  });
+  // plain.minSellWei, plain.maxBuyWei, plain.sellerConditions, plain.buyerConditions
+  // — all live only here in ephemeral memory.
+
+  // 2. ZOPA check (before LLM call)
+  if (plain.maxBuyWei < plain.minSellWei) {
     return { state: 'fail', failureReason: 'no_price_zopa' };
   }
 
-  // 2. NEAR AI Cloud LLM 호출 — 자연어 조건 파싱
+  // 3. NEAR AI Cloud LLM call — conditions passed in-memory only, not logged
   const { conditions, completionId } = await nearAiClient.parseConditions({
-    listingTitle: listing.itemMeta.title,
-    sellerText: listing.plaintextSellerConditions,
-    buyerText: offer.plaintextBuyerConditions,
+    listingTitle: listingRow.item_meta.title,
+    sellerText: plain.sellerConditions,    // <-- never logged
+    buyerText: plain.buyerConditions,      // <-- never logged
     // response_format: json_schema strict: true
   });
 
-  // 3. 조건 호환성 매칭
+  // 4. Condition compatibility match
   const overlap = matchConditions(conditions.seller, conditions.buyer);
   if (!overlap.feasible) {
     return { state: 'fail', failureReason: 'conditions_incompatible' };
   }
 
-  // 4. Karma 가중 가격 계산
-  const agreedPrice = karmaWeight(
-    listing.plaintextMinSell, offer.plaintextMaxBuy,
-    listing.sellerKarmaTier, offer.buyerKarmaTier
-  );
+  // 5. Karma-weighted price computation
+  //    weight = 0.5 + 0.05 * (sellerTier - buyerTier), clamped [0.35, 0.65]
+  //    agreedPrice = floor(minSell + (maxBuy - minSell) * weight)
+  const agreedPrice = karmaWeight(plain.minSellWei, plain.maxBuyWei, sellerTier, buyerTier);
 
-  // 5. NEAR AI attestation 가져오기
+  // 6. Fetch NEAR AI attestation
   const nonce = keccak256(concat([dealId, toHex(completionId)]));
   const bundle = await nearAiClient.fetchAttestation({ model: 'qwen3-30b', nonce, completionId });
   const nearAiAttestationHash = keccak256(canonicalize(bundle));
 
-  // 6. 결과 저장 + relayer 트리거
+  // 7. Persist bundle to disk + settle on-chain
+  await saveAttestationBundle(dealId, bundle);
   await relayer.settleNegotiation({ listingId, offerId, agreedPrice, agreedConditionsHash, nearAiAttestationHash });
 
   return { state: 'agreement', agreedPrice, agreedConditions: overlap, nearAiAttestationHash, modelId: 'qwen3-30b', completionId };
+  // `plain` goes out of scope here — GC reclaims immediately.
 }
 ```
 
-**보안 규칙**:
-- `plaintextMinSell`, `plaintextMaxBuy`, 자연어 원문은 **로그 없음, API response 없음**
-- 거래 완료 시 DB trigger + app-level 양쪽에서 자동 purge (심층 방어)
-- `nearAiAttestationHash`만 on-chain에 기록 — full bundle은 `/attestation/:dealId` 엔드포인트로 제공
+**보안 규칙 (V3)**:
+- `plain.*` 변수는 로그 금지, API response 금지, DB 기록 금지
+- enc_* blob은 DB에 영구 저장 가능 (AEAD 보호) — auto-purge 불필요, 존재 자체가 안전
+- `nearAiAttestationHash`만 on-chain 기록 — full bundle은 `/attestation/:dealId` 제공
 
-### 2.9 보안·위협 모델 (V2)
+### 2.9 보안·위협 모델 (V3)
 
-출처: `docs/threat-model.md` (권위 있는 V2 위협 모델).
+전체 위협 테이블 출처: [`docs/threat-model.md`](docs/threat-model.md).
 
-| # | 공격자 | 능력 | 방어책 | 잔여 리스크 |
-|---|---|---|---|---|
-| 1 | 악의적 NEAR AI 운영자 | 추론 중 모델 교체; 임의 JSON 반환 | `signed_response`가 `model`, `nonce`, `completion_id` 바인딩. 검증기가 TDX measurement + NVIDIA NRAS GPU evidence 재확인. | Intel PCS 루트 서명 키 손상 (비현실적) |
-| 2 | 악의적 서비스 운영자 | 라이브 DB 읽기; plaintext reservation price 추출 | Plaintext는 오퍼 수신 ~ 정산(~15초) 동안만 DB에 존재. `COMPLETED` 시 auto-purge. | 사전 정산 스누핑 가능 — **정직하게 잔여 리스크로 문서화** |
-| 3 | 거래 상대방 | 상대방 예약가 또는 조건 원문 탈취 | `/status/:id`는 `agreedPrice` + `AgreedConditions`(합의 결과)만 반환. 예약가는 어떤 API에도 노출 없음. | 사용자가 조건 텍스트에 가격 포함 — UI 경고로 완화 |
-| 4 | 체인 관찰자 | 다른 `dealId`에 오래된 `nearAiAttestationHash` 재사용 | `nonce = keccak256(dealId ‖ completion_id)` attestation에 내장. 검증기 step 2가 재파생 확인. | attestation은 해당 X에만 유효; Y에 replay 시 nonce 체크 실패 |
-| 5 | DB 침해 (정산 전) | 활성 협상 SQLite 파일 전체 유출 | 미정산 건당 최대 1행의 plaintext 노출. 완료된 거래는 이미 purge. | **클라이언트 암호화 제거의 정직한 트레이드오프로 수용.** 사후: SQLCipher |
-| 6 | DB 침해 (정산 후) | 모든 거래 정산 후 SQLite 파일 전체 유출 | 예약가 데이터 없음 (NULL 컬럼). 정산 사실, attestation 해시, 합의 조건만 저장. | 없음 |
-| 7 | Relayer 키 유출 | `settleNegotiation` 임의 값으로 호출 | 위조 정산은 구매자가 정확한 `agreedPrice`로 `lockEscrow`를 호출하기 전까지 에스크로 없음. on-chain 검증기 FAIL. | `setAttestationRelayer` owner-only rotation. 사후: multisig |
-| 8 | NEAR AI 다운타임 | 서비스가 추론 완료 불가 | 12초 요청 예산; `failureReason: 'llm_timeout'` 반환. 무음 실패 없음. | 사용자 재시도 또는 취소. V2에 fallback LLM 없음 (정직) |
-| 9 | NEAR AI JSON 오출력 | LLM이 스키마 미준수 구조화 출력 반환 | `response_format: json_schema strict: true` 소스에서 거부. 2차 zod 검증이 `llm_timeout`으로 처리. | 없음 |
-| 10 | RLN sybil (스팸 오퍼) | 대량 지갑으로 오퍼 스팸 | `MAX_PER_EPOCH = 3` per `(nullifier, epoch)`. Karma tier gate는 고가 매물에 SNT 스테이킹 필요. | Tier 0 사용자는 다중 지갑 생성 가능, but Karma는 경제적 비용 발생 |
+V3 핵심 변화 요약:
 
-**데모 멘트**:
-> *"우리(운영자)는 협상 ~15초 동안 예약가를 볼 수 있습니다. 이것이 V2의 정직한 신뢰 모델입니다. 거래 완료 즉시 DB에서 자동 삭제됩니다. NEAR AI TEE 추론은 심사위원이 직접 verify-attestation.mjs로 검증할 수 있습니다."*
+| # | 공격자 | V3 방어책 | 잔여 리스크 |
+|---|---|---|---|
+| 1 | 악의적 NEAR AI 운영자 | TDX + NVIDIA attestation, nonce = keccak256(dealId ‖ completionId) | Intel PCS / NVIDIA 루트 신뢰 손상 |
+| 2 | 악의적 서비스 운영자 | **Plaintext DB 미저장. Ephemeral decrypt ~10ms, 로그 없음.** | 수정된 바이너리 배포 시 소스 감사 추적 무효화 — public repo + reproducible builds로 완화 계획 |
+| 3 | 거래 상대방 | agreedPrice만 공개; 상대방 enc blob 및 원문 조건 API 미반환 | 조건 텍스트에 가격 직접 입력하는 사용자 |
+| 4 | Stale attestation replay | nonce binding (dealId-specific) | 없음 |
+| 5 | DB snapshot 탈취 | enc_* blobs AEAD 보호 — plaintext 컬럼 없음 | SERVICE_DECRYPT_SK + DB 동시 탈취 시 복호화 가능 |
+| 6 | 서비스 크래시 | 120s 이후 stuck 협상 'fail' 처리; plaintext 크래시 경계 통과 안 함 | 구매자 재시도 필요 |
+| 7 | Relayer 키 유출 | off-chain verifier로 위조 감지 가능; setAttestationRelayer rotation | 위조 on-chain 이벤트 생성 가능 |
+| 8 | RLN bypass | nullifier 중복 제거; Karma 게이팅. V3 stub은 구조적 유효성만 검증 — 실 ZK 검증은 Phase 2 | Tier 0 다중 지갑 |
+| 9 | Intent 조건 누출 (matchmaker) | ephemeral decrypt 동일 패턴; buyerConditions 명시적 zeroing; 로그에 미기록 | Row 2와 동일한 소스 신뢰 잔여 리스크 |
+| 10 | 반복 입찰으로 판매자 floor 탐색 | agreedPrice만 공개 — floor 역산 불가 (단일 데이터 포인트) | 초고 처리량 다중 매물 상관 공격 (Karma 한도로 비경제적) |
+
+**데모 멘트 (V3)**:
+> *"우리(운영자)조차 예약가를 볼 수 없습니다. 클라이언트가 서비스 pubkey로 sealed한 blob만 전송하고, 서비스는 ~10ms ephemeral decrypt 후 NEAR AI TEE에 전달하고 즉시 폐기합니다. DB에는 암호화된 blob만 저장됩니다."*
 
 ### 2.10 타임라인 (48시간)
 

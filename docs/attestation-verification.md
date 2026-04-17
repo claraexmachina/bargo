@@ -1,6 +1,6 @@
-# Bargo V2 — Attestation Verification Guide
+# Bargo — Attestation Verification Guide
 
-This guide walks a judge (or any third party) through verifying that a Bargo V2 deal used a real NEAR AI Cloud TEE inference — not a server-controlled fake.
+This guide walks a judge (or any third party) through verifying that a Bargo deal used a real NEAR AI Cloud TEE inference — not a server-controlled fake.
 
 ---
 
@@ -157,7 +157,7 @@ Set `BARGO_ESCROW_ADDRESS` to the deployed contract address (see `docs/deploymen
 
 - NEAR AI Cloud API: `https://cloud-api.near.ai/v1`
 - Attestation endpoint: `GET /v1/attestation/report?model=qwen3-30b&nonce=0x...&signing_algo=ecdsa`
-- NEAR AI model used by Bargo V2: `qwen3-30b`
+- NEAR AI model used by Bargo: `qwen3-30b`
 - NVIDIA NRAS endpoint: `https://nras.attestation.nvidia.com/v3/attest/gpu`
 
 **Pinned MR_TD value:**
