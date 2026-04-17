@@ -601,8 +601,16 @@ Where `tag` is the trailing 16 bytes (Poly1305) appended by XChaCha20-Poly1305.
 2. `shared = X25519(eskSender, epkTee)` (32 bytes).
 3. `key = HKDF-SHA256(shared, salt=epkSender || epkTee, info="haggle-v1", length=32)`.
 4. `nonce = randomBytes(24)`.
-5. `ct = XChaCha20-Poly1305(key, nonce, plaintext, aad=listingId || offerId)`.
-   - `aad` is `32+32 = 64` bytes, zero-padded to 64 if offerId is not yet known (listing creation uses `0x00..00` for offerId; same contract on TEE side).
+5. `ct = XChaCha20-Poly1305(key, nonce, plaintext, aad=listingId)`.
+   - `aad` is **32 bytes** — just the `listingId`. offerId is NOT part of AEAD; it is
+     authenticated at the REST transport boundary (POST /offer binds buyer + listingId + blobs).
+     This removes the 64-byte padding ambiguity and eliminates the "web cannot know offerId
+     at seal time" problem. Implemented in `packages/crypto/src/seal.ts::buildListingAad`
+     (TS) and `services/tee/haggle_tee/crypto.py::build_listing_aad` (Python).
+   - **Listing-creation blobs** (`encMinSell`, `encSellerConditions`): the web cannot know
+     the real `listingId` before the server responds, so `zeros32` is used as a stable
+     placeholder. The real TEE decrypts listing blobs with `zeros32` as AAD (transmitted
+     from the service alongside the blobs).
 
 **TS plaintext convention:**
 - `encMinSell` / `encMaxBuy`: plaintext is the UTF-8 decimal string of wei (e.g., `"700000000000000000000000"`). No JSON. Keeps blob size tiny.

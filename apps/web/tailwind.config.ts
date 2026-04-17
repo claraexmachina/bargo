@@ -51,17 +51,28 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       animation: {
-        'bounce-left': 'bounceLeft 0.8s ease-in-out infinite',
-        'bounce-right': 'bounceRight 0.8s ease-in-out infinite',
+        'bounce-left': 'bounceLeft 1.2s ease-in-out infinite',
+        'bounce-right': 'bounceRight 1.2s ease-in-out infinite',
+        'bot-pulse': 'botPulse 2s ease-in-out infinite',
+        'accent-blink-a': 'accentBlink 1.2s ease-in-out infinite',
+        'accent-blink-b': 'accentBlink 1.2s ease-in-out infinite 0.6s',
       },
       keyframes: {
         bounceLeft: {
-          '0%, 100%': { transform: 'translateX(0)' },
-          '50%': { transform: 'translateX(-6px)' },
+          '0%, 100%': { transform: 'translateX(0) scale(1)' },
+          '50%': { transform: 'translateX(-18px) scale(1.02)' },
         },
         bounceRight: {
-          '0%, 100%': { transform: 'translateX(0)' },
-          '50%': { transform: 'translateX(6px)' },
+          '0%, 100%': { transform: 'translateX(0) scale(1)' },
+          '50%': { transform: 'translateX(18px) scale(1.02)' },
+        },
+        botPulse: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.05)' },
+        },
+        accentBlink: {
+          '0%, 49%, 100%': { opacity: '0' },
+          '50%, 99%': { opacity: '1' },
         },
       },
     },

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
 import type { DealId, TeeAgreement, Hex } from '@haggle/shared';
@@ -23,7 +23,11 @@ if (typeof window !== 'undefined') {
 export default function DealPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dealId = params['id'] as DealId;
+  // Passed from offer submission — used to pre-fill retry form
+  const retryListingId = searchParams.get('listingId') ?? '';
+  const retryBid = searchParams.get('bid') ?? '';
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { writeContractAsync } = useWriteContract();
@@ -81,8 +85,10 @@ export default function DealPage() {
       setEscrowLocked(true);
       toast.success('에스크로 락업 완료! 만남 QR을 생성하세요.');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '알 수 없는 오류';
-      toast.error(`락업 실패: ${msg}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[deals] lockEscrow error:', err);
+      }
+      toast.error('락업에 실패했습니다. 지갑을 확인하고 다시 시도해주세요.');
     }
   }
 
@@ -163,8 +169,15 @@ export default function DealPage() {
         <CardContent className="pt-6">
           <NegotiationStatus
             status={status}
-            onRetry={() => router.push('/listings')}
+            onRetry={() => {
+              const dest = retryListingId
+                ? `/offers/new/${retryListingId}${retryBid ? `?bid=${retryBid}` : ''}`
+                : '/listings';
+              router.push(dest);
+            }}
             onLockEscrow={handleLockEscrow}
+            listingId={retryListingId}
+            previousBid={retryBid}
           />
         </CardContent>
       </Card>

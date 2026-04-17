@@ -61,11 +61,14 @@ def safe_log(level: str, msg: str, **kwargs: Any) -> None:
 # ──────────────────────────────────────────────────────────────
 
 
-def _hex_to_aad(listing_id: str, offer_id: str) -> bytes:
-    """Build 64-byte AAD = listingId (32b) || offerId (32b)."""
-    lid = bytes.fromhex(listing_id.removeprefix("0x")).ljust(32, b"\x00")[:32]
-    oid = bytes.fromhex(offer_id.removeprefix("0x")).ljust(32, b"\x00")[:32]
-    return lid + oid
+def _hex_to_aad(listing_id: str) -> bytes:
+    """Build 32-byte AAD = listingId bytes only.
+
+    All 4 blobs (encMinSell, encSellerConditions, encMaxBuy, encBuyerConditions)
+    use this convention. offerId binding is handled at the REST transport layer.
+    See PLAN §3.5 (updated).
+    """
+    return bytes.fromhex(listing_id.removeprefix("0x")).ljust(32, b"\x00")[:32]
 
 
 def _reason_hash(reason: str) -> str:
@@ -96,9 +99,10 @@ async def negotiate(req: NegotiateRequest) -> TeeAttestation:
     sk = signer_account().key.hex()
     tee_sk = tee_privkey()
 
-    aad = _hex_to_aad(req.listingId, req.offerId)
+    aad = _hex_to_aad(req.listingId)
 
     # ── Step 1: Decrypt all 4 blobs ────────────────────────────
+    # All 4 blobs use AAD = listingId (32 bytes). See PLAN §3.5.
     # These variables are SENSITIVE — never log or re-raise their values.
     try:
         raw_min_sell = open_blob(req.encMinSell, aad, tee_sk).decode()

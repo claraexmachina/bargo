@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
-import type { DealId, ListingId } from '@haggle/shared';
+import type { ListingId } from '@haggle/shared';
 import { WalletConnect } from '@/components/WalletConnect';
+import { UserKarma } from '@/components/UserKarma';
 import { ConditionInput } from '@/components/ConditionInput';
 import { PriceInput } from '@/components/PriceInput';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { krwToWei, formatKRW } from '@/lib/format';
 export default function NewOfferPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const listingId = params['listingId'] as ListingId;
   const { address, isConnected } = useAccount();
 
@@ -25,7 +27,9 @@ export default function NewOfferPage() {
   const { data: teePubkeyData } = useTeePubkey();
   const postOffer = usePostOffer();
 
-  const [bidPriceKrw, setBidPriceKrw] = React.useState('');
+  // Pre-fill bid from query param when retrying after a failed negotiation
+  const initialBid = searchParams.get('bid') ?? '';
+  const [bidPriceKrw, setBidPriceKrw] = React.useState(initialBid);
   const [maxPriceKrw, setMaxPriceKrw] = React.useState(''); // reservation — never sent plain
   const [conditions, setConditions] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -45,16 +49,20 @@ export default function NewOfferPage() {
     setIsSubmitting(true);
     try {
       const bidPriceWei = krwToWei(bidPriceKrw);
-      const maxPriceWei = krwToWei(maxPriceKrw);
       const bidPriceBigInt = BigInt(bidPriceWei);
+
+      // Capture sensitive values to locals and clear state BEFORE sealing.
+      // This prevents raw plaintext lingering in React state if seal* throws.
+      const rawMax = maxPriceKrw;
+      const rawCond = conditions;
+      setMaxPriceKrw('');
+      setConditions('');
+
+      const maxPriceWei = krwToWei(rawMax);
 
       // Step 1: Seal max price + conditions
       const encMaxBuy = sealPrice(teePubkeyData.pubkey, maxPriceWei, listingId);
-      const encBuyerConditions = sealConditions(teePubkeyData.pubkey, conditions, listingId);
-
-      // Clear sensitive state immediately
-      setMaxPriceKrw('');
-      setConditions('');
+      const encBuyerConditions = sealConditions(teePubkeyData.pubkey, rawCond, listingId);
 
       // Step 2: Build RLN proof (stub)
       const rlnProof = buildRLNProof({
@@ -74,15 +82,19 @@ export default function NewOfferPage() {
       });
 
       toast.success('오퍼가 제출되었습니다! 협상을 시작합니다...');
-      router.push(`/deals/${result.negotiationId}`);
+      // Pass listingId and bidPrice so deals page can pre-fill retry form
+      router.push(`/deals/${result.negotiationId}?listingId=${listingId}&bid=${bidPriceKrw}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '알 수 없는 오류';
+      const msg = err instanceof Error ? err.message : '';
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[offers/new] submit error:', err);
+      }
       if (msg.includes('karma') || msg.includes('403')) {
         toast.error('Karma 티어가 부족합니다. 이 매물에 오퍼할 수 없습니다.');
       } else if (msg.includes('rln') || msg.includes('nullifier')) {
         toast.error('RLN 검증 실패 — 이 매물에 너무 많은 오퍼를 제출했습니다.');
       } else {
-        toast.error(`오퍼 실패: ${msg}`);
+        toast.error('오퍼 제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
       }
     } finally {
       setIsSubmitting(false);
@@ -102,11 +114,19 @@ export default function NewOfferPage() {
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">오퍼 제출 (Make Offer)</h1>
+          <h1 className="text-2xl font-bold">오퍼 제출</h1>
           {listing && (
             <p className="text-sm text-muted-foreground mt-0.5">
               {listing.itemMeta.title} — 희망가 {formatKRW(listing.askPrice)}
             </p>
+          )}
+          {address && (
+            <div className="flex items-center gap-2 mt-1">
+              <code className="text-xs bg-muted px-2 py-1 rounded">
+                {address.slice(0, 8)}...{address.slice(-4)}
+              </code>
+              <UserKarma address={address} showLabel />
+            </div>
           )}
         </div>
         <WalletConnect />
@@ -176,7 +196,7 @@ export default function NewOfferPage() {
         </div>
 
         {/* Bottom bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3 max-w-screen-md mx-auto">
+        <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
             취소
           </Button>

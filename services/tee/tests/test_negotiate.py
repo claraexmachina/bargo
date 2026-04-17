@@ -56,9 +56,9 @@ def _make_blob(plaintext: str) -> dict:  # type: ignore[type-arg]
 
     nonce = _os.urandom(24)
 
-    lid = bytes.fromhex(_LISTING_ID.removeprefix("0x")).ljust(32, b"\x00")[:32]
-    oid = bytes.fromhex(_OFFER_ID.removeprefix("0x")).ljust(32, b"\x00")[:32]
-    aad = lid + oid
+    # AAD = listingId (32 bytes) only. See PLAN §3.5 (updated).
+    from haggle_tee.crypto import build_listing_aad
+    aad = build_listing_aad(_LISTING_ID)
 
     ct = crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext.encode(), aad, nonce, key)
 

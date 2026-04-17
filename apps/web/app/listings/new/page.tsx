@@ -62,23 +62,28 @@ export default function NewListingPage() {
     setIsSubmitting(true);
     try {
       const askPriceWei = krwToWei(askPriceKrw);
-      const minPriceWei = krwToWei(minPriceKrw);
 
-      // We need a deterministic listing ID placeholder for AAD before we have the real one.
-      // Use a temp placeholder; TEE accepts zeros for offerId.
-      const tempListingId = '0x0000000000000000000000000000000000000000000000000000000000000000' as ListingId;
-
-      // Step 1: Seal reservation price + conditions client-side
-      const encMinSell = sealPrice(teePubkeyData.pubkey, minPriceWei, tempListingId);
-      const encSellerConditions = sealConditions(
-        teePubkeyData.pubkey,
-        conditions,
-        tempListingId,
-      );
-
-      // Clear sensitive state immediately after sealing
+      // Capture sensitive values to locals and clear state BEFORE sealing.
+      // This prevents raw plaintext lingering in React state if seal* throws.
+      const rawMin = minPriceKrw;
+      const rawCond = conditions;
       setMinPriceKrw('');
       setConditions('');
+
+      const minPriceWei = krwToWei(rawMin);
+
+      // Listing-side blobs are sealed before the server assigns a real listingId.
+      // We use zeros32 as a stable placeholder — the TEE recognises this convention.
+      // See PLAN §3.5: AAD = listingId (32 bytes); offerId NOT in AAD.
+      const LISTING_PLACEHOLDER_ID = '0x0000000000000000000000000000000000000000000000000000000000000000' as ListingId;
+
+      // Step 1: Seal reservation price + conditions client-side
+      const encMinSell = sealPrice(teePubkeyData.pubkey, minPriceWei, LISTING_PLACEHOLDER_ID);
+      const encSellerConditions = sealConditions(
+        teePubkeyData.pubkey,
+        rawCond,
+        LISTING_PLACEHOLDER_ID,
+      );
 
       // Build itemMeta hash for on-chain
       const itemMeta = { title: title.trim(), description: description.trim(), category, images: [] as string[] };
@@ -106,8 +111,10 @@ export default function NewListingPage() {
 
       router.push(`/listings/${result.listingId}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '알 수 없는 오류';
-      toast.error(`등록 실패: ${msg}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[listings/new] submit error:', err);
+      }
+      toast.error('매물 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsSubmitting(false);
     }
@@ -267,7 +274,7 @@ export default function NewListingPage() {
         </Card>
 
         {/* Submit — bottom of screen, thumb-reachable */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3 max-w-screen-md mx-auto">
+        <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <Button
             type="button"
             variant="outline"
