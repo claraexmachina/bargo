@@ -41,6 +41,12 @@ data/*.db
 # User-private task notes (per global rules)
 tasks/
 
+# Agent scratch
+.claude/
+
+# TypeScript incremental build
+*.tsbuildinfo
+
 # OS
 .DS_Store
 Thumbs.db
