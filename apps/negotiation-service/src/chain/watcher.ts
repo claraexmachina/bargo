@@ -4,11 +4,16 @@
 // purge trigger to NULL plaintext_min_sell / plaintext_max_buy / etc.
 
 import { bargoEscrowAbi } from '@bargo/shared';
-import type { DealId } from '@bargo/shared';
+import type { DealId, ListingId } from '@bargo/shared';
 import type Database from 'better-sqlite3';
 import type { FastifyBaseLogger } from 'fastify';
 import type { WatchContractEventReturnType } from 'viem';
-import { updateNegotiationState } from '../db/client.js';
+import {
+  bufferToHex,
+  getNegotiationById,
+  updateListingStatus,
+  updateNegotiationState,
+} from '../db/client.js';
 import type { createChainClient } from './read.js';
 
 type ChainClient = ReturnType<typeof createChainClient>;
@@ -37,7 +42,17 @@ export function startFundsReleasedWatcher(
         }
         try {
           updateNegotiationState(db, dealId, 'completed');
-          log.info({ dealId }, 'deal completed — plaintext purged by trigger');
+          // Close the associated listing so it drops off the feed and stops
+          // matching future intents. Negotiation row may be missing if this
+          // watcher fires before the deal was settled through our service.
+          const negotiation = getNegotiationById(db, dealId);
+          if (negotiation) {
+            const listingId = bufferToHex(negotiation.listing_id) as ListingId;
+            updateListingStatus(db, listingId, 'settled');
+            log.info({ dealId, listingId }, 'deal completed — listing marked settled');
+          } else {
+            log.info({ dealId }, 'deal completed — no negotiation row, listing untouched');
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           log.error(
