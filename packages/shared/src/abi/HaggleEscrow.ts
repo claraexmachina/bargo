@@ -12,6 +12,11 @@ export const haggleEscrowAbi = [
         "name": "rlnVerifier_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "attestationRelayer_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -63,16 +68,16 @@ export const haggleEscrowAbi = [
   },
   {
     "type": "function",
-    "name": "addEnclaveSigner",
-    "inputs": [
+    "name": "attestationRelayer",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "signer",
+        "name": "",
         "type": "address",
         "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -99,81 +104,6 @@ export const haggleEscrowAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "domainSeparator",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "eip712Domain",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "fields",
-        "type": "bytes1",
-        "internalType": "bytes1"
-      },
-      {
-        "name": "name",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "version",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "chainId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "verifyingContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "salt",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "extensions",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "enclaveSigner",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -217,12 +147,12 @@ export const haggleEscrowAbi = [
             "internalType": "uint256"
           },
           {
-            "name": "attestationHash",
+            "name": "agreedConditionsHash",
             "type": "bytes32",
             "internalType": "bytes32"
           },
           {
-            "name": "enclaveId",
+            "name": "nearAiAttestationHash",
             "type": "bytes32",
             "internalType": "bytes32"
           },
@@ -406,6 +336,19 @@ export const haggleEscrowAbi = [
   },
   {
     "type": "function",
+    "name": "setAttestationRelayer",
+    "inputs": [
+      {
+        "name": "newRelayer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "settleNegotiation",
     "inputs": [
       {
@@ -424,19 +367,14 @@ export const haggleEscrowAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "attestationHash",
+        "name": "agreedConditionsHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
-        "name": "enclaveId",
+        "name": "nearAiAttestationHash",
         "type": "bytes32",
         "internalType": "bytes32"
-      },
-      {
-        "name": "teeSignature",
-        "type": "bytes",
-        "internalType": "bytes"
       }
     ],
     "outputs": [
@@ -479,16 +417,16 @@ export const haggleEscrowAbi = [
   },
   {
     "type": "event",
-    "name": "EIP712DomainChanged",
-    "inputs": [],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "EnclaveSignerAdded",
+    "name": "AttestationRelayerUpdated",
     "inputs": [
       {
-        "name": "signer",
+        "name": "previous",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "current",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -644,9 +582,15 @@ export const haggleEscrowAbi = [
         "internalType": "bytes32"
       },
       {
-        "name": "offerId",
+        "name": "nearAiAttestationHash",
         "type": "bytes32",
         "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "offerId",
+        "type": "bytes32",
+        "indexed": false,
         "internalType": "bytes32"
       },
       {
@@ -656,13 +600,7 @@ export const haggleEscrowAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "enclaveId",
-        "type": "bytes32",
-        "indexed": false,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "attestationHash",
+        "name": "agreedConditionsHash",
         "type": "bytes32",
         "indexed": false,
         "internalType": "bytes32"
@@ -764,7 +702,7 @@ export const haggleEscrowAbi = [
   },
   {
     "type": "error",
-    "name": "AttestationSigInvalid",
+    "name": "AttestationHashZero",
     "inputs": []
   },
   {
@@ -788,11 +726,6 @@ export const haggleEscrowAbi = [
         "internalType": "bytes32"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "InvalidShortString",
-    "inputs": []
   },
   {
     "type": "error",
@@ -839,6 +772,11 @@ export const haggleEscrowAbi = [
   },
   {
     "type": "error",
+    "name": "NotRelayer",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "RLNProofInvalid",
     "inputs": []
   },
@@ -850,17 +788,6 @@ export const haggleEscrowAbi = [
         "name": "dealId",
         "type": "bytes32",
         "internalType": "bytes32"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "StringTooLong",
-    "inputs": [
-      {
-        "name": "str",
-        "type": "string",
-        "internalType": "string"
       }
     ]
   },
@@ -882,17 +809,6 @@ export const haggleEscrowAbi = [
         "name": "max",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "UnknownEnclave",
-    "inputs": [
-      {
-        "name": "enclaveId",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ]
   },

@@ -7,10 +7,10 @@ import {KarmaReader} from "../src/KarmaReader.sol";
 import {HaggleEscrow} from "../src/HaggleEscrow.sol";
 
 /// @notice Deploys RLNVerifier → KarmaReader → HaggleEscrow.
-///         Requires env: DEPLOYER_PRIVATE_KEY, ENCLAVE_SIGNER_ADDRESS
+///         Requires env: DEPLOYER_PRIVATE_KEY, ATTESTATION_RELAYER_ADDRESS
 contract Deploy is Script {
     function run() external {
-        address enclaveSigner = vm.envAddress("ENCLAVE_SIGNER_ADDRESS");
+        address attestationRelayer = vm.envAddress("ATTESTATION_RELAYER_ADDRESS");
 
         vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
 
@@ -20,11 +20,9 @@ contract Deploy is Script {
         KarmaReader karmaReader = new KarmaReader();
         console.log("KarmaReader:", address(karmaReader));
 
-        HaggleEscrow escrow = new HaggleEscrow(address(karmaReader), address(rlnVerifier));
+        HaggleEscrow escrow = new HaggleEscrow(address(karmaReader), address(rlnVerifier), attestationRelayer);
         console.log("HaggleEscrow:", address(escrow));
-
-        escrow.addEnclaveSigner(enclaveSigner);
-        console.log("EnclaveSignerAdded:", enclaveSigner);
+        console.log("attestationRelayer:", escrow.attestationRelayer());
 
         vm.stopBroadcast();
     }

@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {HaggleEscrow} from "../src/HaggleEscrow.sol";
 import {KarmaReader} from "../src/KarmaReader.sol";
 import {RLNVerifier} from "../src/RLNVerifier.sol";
-import {AttestationLib} from "../src/libs/AttestationLib.sol";
 import {IRLNVerifier} from "../src/interfaces/IRLNVerifier.sol";
 
 contract HaggleEscrowTest is Test {
@@ -17,13 +16,8 @@ contract HaggleEscrowTest is Test {
     address private seller = makeAddr("seller");
     address private buyer = makeAddr("buyer");
     address private eve = makeAddr("eve");
-
-    // Mock TEE signer keypair
-    uint256 private constant TEE_SIGNER_PK = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
-    address private teeSigner;
-
-    // Mock enclave ID
-    bytes32 private constant ENCLAVE_ID = bytes32(uint256(0xDEADBEEF));
+    address private relayer = makeAddr("relayer");
+    address private newRelayer = makeAddr("newRelayer");
 
     // Prices
     uint256 private constant ASK_PRICE = 1 ether;
@@ -33,18 +27,17 @@ contract HaggleEscrowTest is Test {
     // High value threshold: 500_000 ether (from HaggleEscrow constant)
     uint256 private constant HIGH_VALUE = 500_001 ether;
 
-    function setUp() public {
-        teeSigner = vm.addr(TEE_SIGNER_PK);
+    // Attestation / conditions hashes
+    bytes32 private constant ATTEST_HASH = keccak256("near-ai-attestation-bundle");
+    bytes32 private constant CONDITIONS_HASH = keccak256("agreed-conditions-json");
 
+    function setUp() public {
         karma = new KarmaReader();
         rln = new RLNVerifier();
-        escrow = new HaggleEscrow(address(karma), address(rln));
+        escrow = new HaggleEscrow(address(karma), address(rln), relayer);
 
-        escrow.addEnclaveSigner(teeSigner);
-
-        // Seed karma: seller=3, buyer=0 by default (no override), eve=0
+        // Seed karma: seller=3, buyer=0 by default
         karma.setTier(seller, 3);
-        // buyer stays tier 0 (default)
     }
 
     // ─── helpers ───
@@ -61,30 +54,6 @@ contract HaggleEscrowTest is Test {
         return abi.encode(signalHash, _currentEpoch(), nullifier, identity, proof);
     }
 
-    function _makeTeeSignature(
-        bytes32 listingId,
-        bytes32 offerId,
-        uint256 agreedPrice,
-        bytes32 attestationHash,
-        uint256 signerPk
-    ) internal view returns (bytes memory) {
-        AttestationLib.Agreement memory agreement = AttestationLib.Agreement({
-            listingId: listingId,
-            offerId: offerId,
-            agreedPrice: agreedPrice,
-            agreedConditionsHash: attestationHash,
-            enclaveId: ENCLAVE_ID,
-            modelIdHash: bytes32(0),
-            ts: uint64(block.timestamp),
-            nonce: bytes16(offerId)
-        });
-
-        bytes32 structHash = AttestationLib.hash(agreement);
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", escrow.domainSeparator(), structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
-        return abi.encodePacked(r, s, v);
-    }
-
     function _registerListing(uint8 tier, uint256 askPrice) internal returns (bytes32) {
         vm.prank(seller);
         return escrow.registerListing(askPrice, tier, keccak256("macbook-meta"));
@@ -97,9 +66,8 @@ contract HaggleEscrowTest is Test {
     }
 
     function _settleNegotiation(bytes32 listingId, bytes32 offerId, uint256 agreedPrice) internal returns (bytes32) {
-        bytes32 attestationHash = keccak256("gangnam friday 19:30");
-        bytes memory sig = _makeTeeSignature(listingId, offerId, agreedPrice, attestationHash, TEE_SIGNER_PK);
-        return escrow.settleNegotiation(listingId, offerId, agreedPrice, attestationHash, ENCLAVE_ID, sig);
+        vm.prank(relayer);
+        return escrow.settleNegotiation(listingId, offerId, agreedPrice, CONDITIONS_HASH, ATTEST_HASH);
     }
 
     // ─── happy path ───
@@ -115,12 +83,14 @@ contract HaggleEscrowTest is Test {
         bytes32 offerId = _submitOffer(buyer, listingId);
         assertNotEq(offerId, bytes32(0));
 
-        // 3. Settle negotiation with TEE attestation
+        // 3. Settle negotiation via relayer
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
         HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
         assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.PENDING));
         assertEq(deal.buyer, buyer);
         assertEq(deal.seller, seller);
+        assertEq(deal.agreedConditionsHash, CONDITIONS_HASH);
+        assertEq(deal.nearAiAttestationHash, ATTEST_HASH);
 
         // 4. Lock escrow
         vm.deal(buyer, AGREED_PRICE);
@@ -141,6 +111,88 @@ contract HaggleEscrowTest is Test {
         deal = escrow.getDeal(dealId);
         assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.COMPLETED));
         assertEq(seller.balance, sellerBefore + AGREED_PRICE);
+    }
+
+    // ─── Relayer model ───
+
+    function test_settleNegotiation_onlyRelayer() public {
+        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+
+        vm.prank(eve);
+        vm.expectRevert(HaggleEscrow.NotRelayer.selector);
+        escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
+    }
+
+    function test_settleNegotiation_zeroHashReverts() public {
+        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+
+        vm.prank(relayer);
+        vm.expectRevert(HaggleEscrow.AttestationHashZero.selector);
+        escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, bytes32(0));
+    }
+
+    function test_settleNegotiation_happyPath() public {
+        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+
+        bytes32 expectedDealId = keccak256(abi.encodePacked(listingId, offerId));
+
+        vm.prank(relayer);
+        vm.expectEmit(true, true, true, true);
+        emit HaggleEscrow.NegotiationSettled(
+            expectedDealId, listingId, ATTEST_HASH, offerId, AGREED_PRICE, CONDITIONS_HASH
+        );
+        bytes32 dealId = escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
+
+        assertEq(dealId, expectedDealId);
+
+        HaggleEscrow.Deal memory deal = escrow.getDeal(dealId);
+        assertEq(deal.agreedConditionsHash, CONDITIONS_HASH);
+        assertEq(deal.nearAiAttestationHash, ATTEST_HASH);
+        assertEq(deal.agreedPrice, AGREED_PRICE);
+        assertEq(uint8(deal.state), uint8(HaggleEscrow.DealState.PENDING));
+    }
+
+    function test_setAttestationRelayer_onlyOwner() public {
+        vm.prank(eve);
+        vm.expectRevert(HaggleEscrow.NotOwner.selector);
+        escrow.setAttestationRelayer(newRelayer);
+    }
+
+    function test_setAttestationRelayer_updates() public {
+        // Owner updates relayer
+        vm.expectEmit(true, true, false, false);
+        emit HaggleEscrow.AttestationRelayerUpdated(relayer, newRelayer);
+        escrow.setAttestationRelayer(newRelayer);
+
+        assertEq(escrow.attestationRelayer(), newRelayer);
+
+        // New relayer can settle
+        bytes32 listingId = _registerListing(0, ASK_PRICE);
+        bytes32 offerId = _submitOffer(buyer, listingId);
+
+        vm.prank(newRelayer);
+        bytes32 dealId = escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
+        assertNotEq(dealId, bytes32(0));
+
+        // Old relayer reverts on a second offer
+        bytes32 listingId2;
+        {
+            vm.prank(seller);
+            listingId2 = escrow.registerListing(ASK_PRICE, 0, keccak256("item2"));
+        }
+        bytes32 offerId2 = _submitOffer(buyer, listingId2);
+
+        vm.prank(relayer);
+        vm.expectRevert(HaggleEscrow.NotRelayer.selector);
+        escrow.settleNegotiation(listingId2, offerId2, AGREED_PRICE, CONDITIONS_HASH, ATTEST_HASH);
+    }
+
+    function test_setAttestationRelayer_zeroReverts() public {
+        vm.expectRevert(HaggleEscrow.ZeroAddress.selector);
+        escrow.setAttestationRelayer(address(0));
     }
 
     // ─── Karma gate ───
@@ -227,8 +279,6 @@ contract HaggleEscrowTest is Test {
             abi.encode(keccak256("signal"), _currentEpoch(), bytes32(0), keccak256("identity"), hex"deadbeef");
 
         vm.prank(buyer);
-        // RLNVerifier.ProofInvalid is caught and re-thrown as RLNProofInvalid
-        // Actually RLNVerifier reverts internally; escrow propagates the revert
         vm.expectRevert(IRLNVerifier.ProofInvalid.selector);
         escrow.submitOffer(listingId, BID_PRICE, rlnProof);
     }
@@ -264,39 +314,6 @@ contract HaggleEscrowTest is Test {
         vm.prank(rlnBuyer);
         vm.expectRevert(abi.encodeWithSelector(IRLNVerifier.NullifierAlreadyUsed.selector, nullifier));
         escrow.submitOffer(listings[3], BID_PRICE, encoded);
-    }
-
-    // ─── Attestation ───
-
-    function test_tamperedSignatureReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
-        bytes32 offerId = _submitOffer(buyer, listingId);
-
-        bytes32 attestationHash = keccak256("gangnam");
-
-        // Use a different (wrong) private key to sign
-        uint256 wrongPk = 0xBADBADBADBADBADBADBADBADBADBADBADBADBADBADBADBADBADBADBADBADBAD1;
-        bytes memory sig = _makeTeeSignature(listingId, offerId, AGREED_PRICE, attestationHash, wrongPk);
-
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.UnknownEnclave.selector, ENCLAVE_ID));
-        escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, attestationHash, ENCLAVE_ID, sig);
-    }
-
-    function test_unknownEnclaveReverts() public {
-        bytes32 listingId = _registerListing(0, ASK_PRICE);
-        bytes32 offerId = _submitOffer(buyer, listingId);
-
-        bytes32 attestationHash = keccak256("gangnam");
-
-        // Use a not-whitelisted private key
-        uint256 notWhitelistedPk = 0xABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF012345678;
-        address notWhitelistedAddr = vm.addr(notWhitelistedPk);
-        assertFalse(escrow.enclaveSigner(notWhitelistedAddr));
-
-        bytes memory sig = _makeTeeSignature(listingId, offerId, AGREED_PRICE, attestationHash, notWhitelistedPk);
-
-        vm.expectRevert(abi.encodeWithSelector(HaggleEscrow.UnknownEnclave.selector, ENCLAVE_ID));
-        escrow.settleNegotiation(listingId, offerId, AGREED_PRICE, attestationHash, ENCLAVE_ID, sig);
     }
 
     // ─── No-show flow ───
