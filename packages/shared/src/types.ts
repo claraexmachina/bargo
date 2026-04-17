@@ -145,6 +145,58 @@ export interface PostOfferResponse {
 export type NegotiationState = 'queued' | 'running' | 'agreement' | 'fail' | 'settled';
 export type FailureReason = 'no_price_zopa' | 'conditions_incompatible' | 'llm_timeout';
 
+// --- Standing Intents (auto-discovery) ---
+// Buyer sets one-time sealed intent. Service's background matchmaker scans
+// new listings, ephemerally decrypts intent in request scope, asks NEAR AI
+// whether the listing matches the intent's natural-language conditions. On
+// match, inserts an IntentMatch row that the web polls for notifications.
+export type IntentId = Hex; // bytes32, server-assigned
+
+export interface IntentFilters {
+  category?: 'electronics' | 'fashion' | 'furniture' | 'other';
+  requiredKarmaTierCeiling?: KarmaTier; // only match listings whose requiredKarmaTier <= this
+}
+
+export interface IntentPublic {
+  id: IntentId;
+  buyer: Address;
+  filters: IntentFilters;
+  expiresAt: number; // unix seconds
+  createdAt: number;
+  active: boolean;
+}
+
+export interface PostIntentRequest {
+  buyer: Address;
+  encMaxBuy: EncryptedBlob; // sealed max budget (wei decimal string)
+  encBuyerConditions: EncryptedBlob; // sealed natural-language conditions
+  filters: IntentFilters;
+  expiresAt: number;
+  // AAD context: intent-level sealing uses zero-bytes listingId since no
+  // specific listing is targeted yet. Service uses matching context bytes
+  // when decrypting (documented in crypto/decryptEphemeral).
+}
+
+export interface PostIntentResponse {
+  intentId: IntentId;
+}
+
+export interface IntentMatch {
+  intentId: IntentId;
+  listingId: ListingId;
+  seller: Address;
+  itemMeta: ListingMeta;
+  requiredKarmaTier: KarmaTier;
+  score: 'match' | 'likely' | 'uncertain';
+  matchReason: string; // short NEAR AI explanation (public — doesn't leak conditions)
+  matchedAt: number;
+  acknowledged: boolean;
+}
+
+export interface GetIntentMatchesResponse {
+  matches: IntentMatch[];
+}
+
 export interface GetStatusResponse {
   negotiationId: DealId;
   state: NegotiationState;
