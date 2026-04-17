@@ -20,7 +20,10 @@ async function fetchListings(): Promise<ListingPublic[]> {
     const res = await fetch(`${serviceUrl}/listings`, { next: { revalidate: 30 } });
     if (!res.ok) throw new Error(`${res.status}`);
     const body = (await res.json()) as { listings: ListingPublic[] };
-    return body.listings.length > 0 ? body.listings : DEMO_LISTINGS;
+    // Always pad with demo fixtures so the market looks active. Real listings come first.
+    const realIds = new Set(body.listings.map((l) => l.id));
+    const demoFiller = DEMO_LISTINGS.filter((l) => !realIds.has(l.id));
+    return [...body.listings, ...demoFiller];
   } catch {
     return DEMO_LISTINGS;
   }
