@@ -16,6 +16,3 @@ export const THROUGHPUT_LIMITS = [3, 10, 20, 2 ** 31 - 1] as const;
 export const RLN_EPOCH_DURATION = 300 as const;
 // Maximum offers per epoch per user per listing
 export const RLN_MAX_PER_EPOCH = 3 as const;
-
-// --- Settlement ---
-export const SETTLEMENT_WINDOW_SECONDS = 86_400 as const; // 24 hours

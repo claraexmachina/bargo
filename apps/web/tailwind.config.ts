@@ -1,50 +1,67 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  darkMode: 'class',
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        primary: {
-          DEFAULT: '#F59E0B', // warm amber
-          50: '#FFFBEB',
-          100: '#FEF3C7',
-          200: '#FDE68A',
-          300: '#FCD34D',
-          400: '#FBBF24',
-          500: '#F59E0B',
-          600: '#D97706',
-          700: '#B45309',
-          800: '#92400E',
-          900: '#78350F',
-          950: '#451A03',
+        // Bargo pixel palette — referenced from the design brief
+        bargo: {
+          bg: '#B9CFF1',
+          ink: '#353B51',
+          accent: '#FFD700',
+          soft: '#FFC3C3',
+          white: '#FFFFFF',
+          mint: '#9DBBE6',
         },
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        // Semantic aliases so existing Tailwind utilities keep working
+        primary: {
+          DEFAULT: '#FFD700',
+          50: '#FFFBEB',
+          100: '#FFF4C2',
+          200: '#FFEC94',
+          300: '#FFE366',
+          400: '#FFD933',
+          500: '#FFD700',
+          600: '#CCAC00',
+          700: '#998100',
+          800: '#665600',
+          900: '#332B00',
+          950: '#1A1500',
+        },
+        background: '#B9CFF1',
+        foreground: '#353B51',
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: '#FFFFFF',
+          foreground: '#353B51',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: '#E8EEF8',
+          foreground: '#5B6380',
         },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
+        border: '#353B51',
+        input: '#353B51',
+        ring: '#FFD700',
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: '#E11D48',
+          foreground: '#FFFFFF',
         },
       },
       fontFamily: {
-        sans: ['Pretendard', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['"Helvetica Neue"', 'Arial', 'system-ui', 'sans-serif'],
+        mono: ['"Courier New"', 'Courier', 'monospace'],
+        pixel: ['"Press Start 2P"', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: '0px',
+        md: '0px',
+        sm: '0px',
+      },
+      boxShadow: {
+        pixel: '4px 4px 0px #353B51',
+        'pixel-sm': '2px 2px 0px #353B51',
+        'pixel-lg': '6px 6px 0px #353B51',
+        'pixel-soft': '4px 4px 0px rgba(53, 59, 81, 0.15)',
       },
       animation: {
         'bounce-left': 'bounceLeft 1.2s ease-in-out infinite',
@@ -52,6 +69,7 @@ const config: Config = {
         'bot-pulse': 'botPulse 2s ease-in-out infinite',
         'accent-blink-a': 'accentBlink 1.2s ease-in-out infinite',
         'accent-blink-b': 'accentBlink 1.2s ease-in-out infinite 0.6s',
+        'pixel-float': 'pixelFloat 3s ease-in-out infinite',
       },
       keyframes: {
         bounceLeft: {
@@ -69,6 +87,10 @@ const config: Config = {
         accentBlink: {
           '0%, 49%, 100%': { opacity: '0' },
           '50%, 99%': { opacity: '1' },
+        },
+        pixelFloat: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
         },
       },
     },

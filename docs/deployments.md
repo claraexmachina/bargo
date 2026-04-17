@@ -107,13 +107,17 @@ Then update this file with the actual addresses below.
 
 ---
 
-## V2 Deployed Addresses
+## V3 Deployed Addresses (Hoodi chainId 374)
 
-| Contract     | Address                              | TxHash |
-|--------------|--------------------------------------|--------|
-| RLNVerifier  | <TBD — deploy via forge script>      | TBD    |
-| KarmaReader  | <TBD — deploy via forge script>      | TBD    |
-| BargoEscrow | <TBD — deploy via forge script>      | TBD    |
+Deployed on 2026-04-17 after the meetup-flow simplification (single-confirm release, no-show/refund removed).
+
+| Contract     | Address                                      | TxHash |
+|--------------|----------------------------------------------|--------|
+| RLNVerifier  | `0x26BbdD2c2cB4BE5d6892E4BFb4cB4D52dC2b332B` | `0x6cd3e66572d8e8eb8f12644e997410d744f246bed62111ebee779209b81f912e` |
+| KarmaReader  | `0xB8A7Af7Addc49Bfd6517b353231f0a0F6a988287` | `0x22eabebe70b7991f1b4bb9483d445f838aca7e9ddca3a3a51369af489a62f9c4` |
+| BargoEscrow  | `0xd4618b10073CF33d6db87A19CE6Cdbc135C988Ee` | `0x2a801f1c50e9f233fac76f1b714c5a46cb322204d345b0744e6d5b20ef8a839a` |
+
+Attestation relayer: `0x9B77A2301b535507ccE4e67f85d029D7511CE191`
 
 ---
 

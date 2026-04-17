@@ -4,12 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAckIntentMatch, useIntentMatches } from '@/lib/api';
+import { useMounted } from '@/lib/use-mounted';
 import type { IntentMatch, ListingId } from '@bargo/shared';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 import { useAccount } from 'wagmi';
 
 export function IntentMatchBanner() {
+  const mounted = useMounted();
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const { data } = useIntentMatches(isConnected ? address : undefined);
@@ -19,7 +21,7 @@ export function IntentMatchBanner() {
   const matches = data?.matches ?? [];
   const unacknowledged = matches.filter((m) => !m.acknowledged);
 
-  if (!isConnected || unacknowledged.length === 0) return null;
+  if (!mounted || !isConnected || unacknowledged.length === 0) return null;
 
   function handleReview(match: IntentMatch) {
     void ackMatch.mutateAsync({
@@ -36,7 +38,7 @@ export function IntentMatchBanner() {
         type="button"
         aria-label={`${unacknowledged.length} intent match${unacknowledged.length !== 1 ? 'es' : ''}`}
         onClick={() => setOpen((v) => !v)}
-        className="relative flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors"
+        className="relative flex items-center justify-center w-10 h-10 border-2 border-bargo-ink bg-bargo-white hover:bg-bargo-accent transition-colors"
       >
         {/* Bell icon */}
         <svg
@@ -73,26 +75,28 @@ export function IntentMatchBanner() {
             tabIndex={-1}
           />
           {/* Popover */}
-          <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border bg-background shadow-lg">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <span className="font-semibold text-sm">Intent matches</span>
+          <div className="pixel-box absolute right-0 top-12 z-50 w-80 bg-bargo-white">
+            <div className="flex items-center justify-between px-4 py-3 border-b-4 border-bargo-ink bg-bargo-bg/40">
+              <span className="font-mono font-black uppercase text-xs tracking-wider">
+                Intent matches
+              </span>
               <button
                 type="button"
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                className="text-[10px] font-mono uppercase tracking-widest hover:text-bargo-accent"
                 onClick={() => {
                   setOpen(false);
                   router.push('/intents');
                 }}
               >
-                View all
+                View all →
               </button>
             </div>
-            <div className="max-h-96 overflow-y-auto divide-y">
+            <div className="max-h-96 overflow-y-auto divide-y-2 divide-bargo-ink/20">
               {unacknowledged.map((match) => (
-                <div key={`${match.intentId}-${match.listingId}`} className="px-4 py-3 space-y-1">
-                  <p className="text-sm font-medium line-clamp-1">{match.itemMeta.title}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{match.matchReason}</p>
-                  <Button size="sm" className="mt-1" onClick={() => handleReview(match)}>
+                <div key={`${match.intentId}-${match.listingId}`} className="px-4 py-3 space-y-2">
+                  <p className="text-sm font-bold line-clamp-1">{match.itemMeta.title}</p>
+                  <p className="text-xs opacity-70 line-clamp-2">{match.matchReason}</p>
+                  <Button size="sm" onClick={() => handleReview(match)}>
                     Review offer
                   </Button>
                 </div>

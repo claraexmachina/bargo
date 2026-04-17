@@ -11,13 +11,6 @@ export const bargoEscrowAbi = [
   },
   {
     type: 'function',
-    name: 'SETTLEMENT_WINDOW',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     name: 'activeNegotiations',
     inputs: [{ name: '', type: 'address', internalType: 'address' }],
     outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
@@ -63,7 +56,6 @@ export const bargoEscrowAbi = [
           { name: 'nearAiAttestationHash', type: 'bytes32', internalType: 'bytes32' },
           { name: 'state', type: 'uint8', internalType: 'enum BargoEscrow.DealState' },
           { name: 'createdAt', type: 'uint64', internalType: 'uint64' },
-          { name: 'lockedUntil', type: 'uint64', internalType: 'uint64' },
         ],
       },
     ],
@@ -112,26 +104,12 @@ export const bargoEscrowAbi = [
   },
   {
     type: 'function',
-    name: 'refund',
-    inputs: [{ name: 'dealId', type: 'bytes32', internalType: 'bytes32' }],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
     name: 'registerListing',
     inputs: [
       { name: 'requiredKarmaTier', type: 'uint8', internalType: 'uint8' },
       { name: 'itemMetaHash', type: 'bytes32', internalType: 'bytes32' },
     ],
     outputs: [{ name: 'listingId', type: 'bytes32', internalType: 'bytes32' }],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'reportNoShow',
-    inputs: [{ name: 'dealId', type: 'bytes32', internalType: 'bytes32' }],
-    outputs: [],
     stateMutability: 'nonpayable',
   },
   {
@@ -192,16 +170,6 @@ export const bargoEscrowAbi = [
   },
   {
     type: 'event',
-    name: 'FundsRefunded',
-    inputs: [
-      { name: 'dealId', type: 'bytes32', indexed: true, internalType: 'bytes32' },
-      { name: 'buyer', type: 'address', indexed: true, internalType: 'address' },
-      { name: 'amount', type: 'uint256', indexed: false, internalType: 'uint256' },
-    ],
-    anonymous: false,
-  },
-  {
-    type: 'event',
     name: 'FundsReleased',
     inputs: [
       { name: 'dealId', type: 'bytes32', indexed: true, internalType: 'bytes32' },
@@ -245,16 +213,6 @@ export const bargoEscrowAbi = [
   },
   {
     type: 'event',
-    name: 'NoShowReported',
-    inputs: [
-      { name: 'dealId', type: 'bytes32', indexed: true, internalType: 'bytes32' },
-      { name: 'reporter', type: 'address', indexed: true, internalType: 'address' },
-      { name: 'accused', type: 'address', indexed: true, internalType: 'address' },
-    ],
-    anonymous: false,
-  },
-  {
-    type: 'event',
     name: 'OfferSubmitted',
     inputs: [
       { name: 'listingId', type: 'bytes32', indexed: true, internalType: 'bytes32' },
@@ -273,17 +231,7 @@ export const bargoEscrowAbi = [
     ],
     anonymous: false,
   },
-  {
-    type: 'error',
-    name: 'AlreadyConfirmed',
-    inputs: [{ name: 'who', type: 'address', internalType: 'address' }],
-  },
   { type: 'error', name: 'AttestationHashZero', inputs: [] },
-  {
-    type: 'error',
-    name: 'DealNotInNoShow',
-    inputs: [{ name: 'dealId', type: 'bytes32', internalType: 'bytes32' }],
-  },
   {
     type: 'error',
     name: 'DealNotLocked',
@@ -307,6 +255,11 @@ export const bargoEscrowAbi = [
     name: 'ListingNotActive',
     inputs: [{ name: 'listingId', type: 'bytes32', internalType: 'bytes32' }],
   },
+  {
+    type: 'error',
+    name: 'NotBuyer',
+    inputs: [{ name: 'who', type: 'address', internalType: 'address' }],
+  },
   { type: 'error', name: 'NotOwner', inputs: [] },
   {
     type: 'error',
@@ -315,11 +268,6 @@ export const bargoEscrowAbi = [
   },
   { type: 'error', name: 'NotRelayer', inputs: [] },
   { type: 'error', name: 'RLNProofInvalid', inputs: [] },
-  {
-    type: 'error',
-    name: 'SettlementWindowOpen',
-    inputs: [{ name: 'dealId', type: 'bytes32', internalType: 'bytes32' }],
-  },
   {
     type: 'error',
     name: 'ThroughputExceeded',

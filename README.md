@@ -40,6 +40,7 @@ Web (Next.js PWA) ──[sealed blob]──► Negotiation Service (Fastify + SQ
 5. NEAR AI (inside Intel TDX + NVIDIA GPU TEE) parses conditions, computes Karma-weighted `agreedPrice`.
 6. Relayer submits `settleNegotiation(agreedPrice, nearAiAttestationHash)` on-chain.
 7. Only `agreedPrice` and `AgreedConditions` (merged meetup result) are ever revealed — never the raw floor or ceiling.
+8. Buyer calls `lockEscrow(dealId, {value: agreedPrice})`; on successful in-person exchange, buyer calls `confirmMeetup(dealId)` and the contract releases funds to the seller in the same tx.
 
 ## Standing Intents (auto-discovery)
 
@@ -61,7 +62,7 @@ cd apps/negotiation-service && pnpm dev
 cd apps/web && pnpm dev
 ```
 
-Open http://localhost:3000 → Connect wallet (Hoodi chainId 374) → Create listing (sealed floor) → Submit offer (sealed ceiling) → Bot vs bot negotiation → View agreement result
+Open http://localhost:3000 → Connect wallet (Hoodi chainId 374) → Create listing (sealed floor) → Submit offer (sealed ceiling) → Bot vs bot negotiation → View agreement result → Buyer locks escrow → Buyer confirms meetup (single tx releases funds to seller)
 
 ## Environment variables
 
@@ -108,10 +109,10 @@ pnpm -r typecheck                                     # 0 errors across all TS
 pnpm -C packages/crypto test                          # 4 crypto unit tests
 pnpm -C apps/negotiation-service test                 # 64 service tests
 pnpm -C apps/web test                                 # 46 web tests
-cd contracts && forge test                            # 38 Solidity tests
+cd contracts && forge test                            # 35 Solidity tests
 node scripts/verify-attestation.mjs \
   --file scripts/fixtures/sample-attestation.json    # verifier smoke test (~4 checks)
-# Total: ~156 tests
+# Total: ~153 tests
 ```
 
 ## Demo-day checklist (V3)

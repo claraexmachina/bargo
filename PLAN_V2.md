@@ -275,9 +275,9 @@ On `Deal.state == COMPLETED` (both parties confirmed meetup, funds released):
 3. SQLite trigger is a safety net: defined in `schema.sql`, fires when `negotiations.state` is updated to `'completed'`.
 4. Kept forever: `attestation_hash`, `agreed_price`, `agreed_conditions_hash`, `settled_at`, `near_ai_model_id`, `attestation_blob_path`.
 
-### 2.4 Meetup / no-show (unchanged from V1)
+### 2.4 Meetup confirmation
 
-Identical to current `BargoEscrow` flow: `lockEscrow` → two `confirmMeetup` calls → `FundsReleased`, or `reportNoShow` after `lockedUntil` → `refund`.
+Buyer-initiated single-step release: `lockEscrow` → buyer calls `confirmMeetup` once → `FundsReleased` to seller in the same tx. No seller-side action, no QR, no no-show / refund path.
 
 ### 2.5 Attestation verification by judge (off-chain)
 
@@ -444,7 +444,7 @@ pragma solidity ^0.8.24;
 import {IKarmaReader} from "./interfaces/IKarmaReader.sol";
 import {IRLNVerifier} from "./interfaces/IRLNVerifier.sol";
 
-enum DealState { NONE, PENDING, LOCKED, COMPLETED, NOSHOW, REFUNDED }
+enum DealState { NONE, PENDING, LOCKED, COMPLETED, REFUNDED }
 
 struct Listing {
     address seller;
@@ -465,7 +465,6 @@ struct Deal {
     bytes32 nearAiAttestationHash;     // NEW: keccak256 of canonical attestation bundle
     DealState state;
     uint64  createdAt;
-    uint64  lockedUntil;
 }
 
 interface IBargoEscrow {
@@ -477,8 +476,7 @@ interface IBargoEscrow {
     error DealNotLocked(bytes32 dealId);
     error DealNotPending(bytes32 dealId);
     error NotParticipant(address who);
-    error AlreadyConfirmed(address who);
-    error SettlementWindowOpen(bytes32 dealId);
+    error NotBuyer(address who);
     error ZeroAddress();
     error ZeroAmount();
     error WrongEscrowAmount(uint256 sent, uint256 required);
@@ -505,10 +503,8 @@ interface IBargoEscrow {
     );
     event EscrowLocked(bytes32 indexed dealId, address indexed buyer, uint256 amount);
     event MeetupConfirmed(bytes32 indexed dealId, address indexed by);
-    event NoShowReported(bytes32 indexed dealId, address indexed reporter, address indexed accused);
     event ThroughputExceededEvent(address indexed who, uint256 current);
     event FundsReleased(bytes32 indexed dealId, address indexed seller, uint256 amount);
-    event FundsRefunded(bytes32 indexed dealId, address indexed buyer, uint256 amount);
     event AttestationRelayerUpdated(address indexed previous, address indexed current); // NEW
 
     // ─── state ───
@@ -545,8 +541,6 @@ interface IBargoEscrow {
 
     function lockEscrow(bytes32 dealId) external payable;
     function confirmMeetup(bytes32 dealId) external;
-    function reportNoShow(bytes32 dealId) external;
-    function refund(bytes32 dealId) external;
     function cancelOffer(bytes32 dealId) external;
 
     // ─── views ───
@@ -601,7 +595,7 @@ constructor(address karmaReader_, address rlnVerifier_, address attestationRelay
 | 5 | DB breach pre-settlement | full exfiltration of SQLite file | plaintext of live negotiations leaks (1 row per unsettled deal). Completed deals already purged. | Accept as honest tradeoff; document in demo. Mitigation: SQLite at-rest encryption via SQLCipher — **deferred post-hackathon** |
 | 6 | DB breach post-settlement | full exfiltration | zero reservation data present (NULL columns); only settlement facts + attestation hashes | none |
 | 7 | Relayer key leak | attacker calls `settleNegotiation` with arbitrary values | attacker can forge settled deals; deal has no backing escrow until buyer calls `lockEscrow` with exact agreedPrice; economic loss bounded to buyer's willingness to lock. Event log will show forged `nearAiAttestationHash` — off-chain verifier FAILS, judge can flag as fake. | Mitigation: `setAttestationRelayer` owner-only rotation. Post-hackathon: multisig |
-| 8 | NEAR AI downtime | service cannot inference | return `failureReason: 'llm_timeout'` to client; 12s request budget; no fallback LLM in V2 (honest) | User retries or cancels — bounded by `SETTLEMENT_WINDOW` |
+| 8 | NEAR AI downtime | service cannot inference | return `failureReason: 'llm_timeout'` to client; 12s request budget; no fallback LLM in V2 (honest) | User retries or cancels the offer |
 | 9 | Malformed NEAR AI JSON output | LLM returns non-conforming schema | `response_format: json_schema strict: true` rejects at source; secondary zod validation in engine; treat as `llm_timeout` equivalent | none |
 | 10 | RLN sybil | mass wallets spam offers | existing V1 defense unchanged: `MAX_PER_EPOCH = 3` on `(nullifier, epoch)` | Karma tier gate still requires SNT stake |
 

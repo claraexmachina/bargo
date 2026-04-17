@@ -39,6 +39,8 @@ export async function registerRoutes(
     servicePubkey: Hex;
   },
 ): Promise<void> {
+  app.get('/health', async () => ({ status: 'ok' }));
+
   await app.register(async (sub) => {
     await servicePubkeyRoutes(sub, { servicePubkey: opts.servicePubkey });
     await listingRoutes(sub, { db: opts.db });

@@ -1,6 +1,7 @@
 'use client';
 
 import { AttestationViewer } from '@/components/AttestationViewer';
+import { PixelCat } from '@/components/PixelCat';
 import { Button } from '@/components/ui/button';
 import { formatKRW, formatMeetTime } from '@/lib/format';
 import type { GetStatusResponse } from '@bargo/shared';
@@ -11,45 +12,45 @@ interface NegotiationStatusProps {
   onLockEscrow?: (agreedPrice: string) => void;
 }
 
-function BotVsBotAnimation() {
+function CatVsCatAnimation() {
   return (
     <div
-      className="flex items-center justify-center gap-4 py-6"
+      className="pixel-box bg-bargo-mint p-6"
       role="status"
       aria-label="Negotiating inside NEAR AI TEE"
     >
-      {/* Seller bot bubble */}
-      <div className="flex flex-col items-center gap-2 animate-bounce-left">
-        <span
-          className="h-2 w-2 rounded-full bg-blue-500 animate-accent-blink-a mb-1"
-          aria-hidden="true"
-        />
-        <div className="text-3xl animate-bot-pulse" aria-hidden="true">
-          🤖
+      <div className="flex items-center justify-center gap-4 sm:gap-8">
+        {/* Seller cat */}
+        <div className="flex flex-col items-center gap-2 animate-bounce-left">
+          <span
+            className="h-2 w-2 bg-bargo-ink animate-accent-blink-a"
+            aria-hidden="true"
+          />
+          <PixelCat
+            role="seller"
+            className="w-20 h-20 drop-shadow-[3px_3px_0_#353B51] animate-bot-pulse"
+          />
+          <span className="pixel-pill">Seller</span>
         </div>
-        <div className="rounded-xl bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300 max-w-[80px] text-center">
-          Seller bot
-        </div>
-      </div>
 
-      {/* Exchange dots */}
-      <div className="flex gap-1" aria-hidden="true">
-        <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-        <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-        <span className="h-2 w-2 rounded-full bg-primary animate-bounce" />
-      </div>
-
-      {/* Buyer bot bubble */}
-      <div className="flex flex-col items-center gap-2 animate-bounce-right">
-        <span
-          className="h-2 w-2 rounded-full bg-purple-500 animate-accent-blink-b mb-1"
-          aria-hidden="true"
-        />
-        <div className="text-3xl animate-bot-pulse" aria-hidden="true">
-          🤖
+        {/* Exchange dots */}
+        <div className="flex gap-1" aria-hidden="true">
+          <span className="h-2 w-2 bg-bargo-ink animate-bounce [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 bg-bargo-accent animate-bounce [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 bg-bargo-ink animate-bounce" />
         </div>
-        <div className="rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-1.5 text-xs text-purple-700 dark:text-purple-300 max-w-[80px] text-center">
-          Buyer bot
+
+        {/* Buyer cat */}
+        <div className="flex flex-col items-center gap-2 animate-bounce-right">
+          <span
+            className="h-2 w-2 bg-bargo-ink animate-accent-blink-b"
+            aria-hidden="true"
+          />
+          <PixelCat
+            role="buyer"
+            className="w-20 h-20 drop-shadow-[3px_3px_0_#353B51] animate-bot-pulse"
+          />
+          <span className="pixel-pill bg-bargo-soft">Buyer</span>
         </div>
       </div>
     </div>
@@ -61,10 +62,12 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
 
   if (state === 'queued' || state === 'running') {
     return (
-      <div className="text-center space-y-3">
-        <BotVsBotAnimation />
-        <p className="text-sm font-medium">Negotiating inside NEAR AI TEE...</p>
-        <p className="text-xs text-muted-foreground">
+      <div className="text-center space-y-4">
+        <CatVsCatAnimation />
+        <p className="font-mono text-sm font-bold uppercase tracking-wider">
+          Cats haggling inside TEE...
+        </p>
+        <p className="text-xs text-bargo-ink/70 max-w-md mx-auto leading-relaxed">
           Price and conditions are processed inside NEAR AI TEE. Counterparty never sees them.
           Operator sees plaintext for ~15s during negotiation; auto-purged on deal completion.
         </p>
@@ -74,18 +77,18 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
 
   if (state === 'fail') {
     return (
-      <div className="text-center space-y-4 py-4">
-        <div className="text-4xl" aria-hidden="true">
-          ❌
+      <div className="pixel-box bg-bargo-soft p-6 text-center space-y-4">
+        <div className="font-pixel text-2xl" aria-hidden="true">
+          X_X
         </div>
-        <p className="text-lg font-semibold text-destructive">
-          Negotiation failed — adjust your conditions and try again
+        <p className="font-mono font-black uppercase tracking-wider text-sm">
+          No deal — the cats walked away
         </p>
-        <p className="text-sm text-muted-foreground">
-          Which conditions conflicted is not disclosed.
+        <p className="text-xs text-bargo-ink/70">
+          Conditions clashed. Which ones? Kept private.
         </p>
         {onRetry && (
-          <Button onClick={onRetry} variant="outline" className="mt-2">
+          <Button onClick={onRetry} variant="outline" size="sm">
             Try again
           </Button>
         )}
@@ -99,40 +102,42 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
     const { agreedPrice, agreedConditions } = attestation;
 
     return (
-      <div className="space-y-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl" aria-hidden="true">
-            🎉
+      <div className="space-y-4">
+        <div className="pixel-box bg-bargo-accent p-4 flex items-center gap-3">
+          <span className="font-pixel text-sm" aria-hidden="true">
+            \(^o^)/
           </span>
-          <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-            Agreement reached!
+          <p className="font-mono font-black uppercase tracking-wider text-sm">
+            Paws shook — deal locked!
           </p>
         </div>
 
-        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <div className="pixel-box bg-bargo-white p-5 space-y-4">
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
+            <p className="font-mono text-[10px] uppercase tracking-widest opacity-60 mb-1">
               Agreed price
             </p>
-            <p className="text-2xl font-bold">{formatKRW(agreedPrice)}</p>
+            <p className="font-mono text-3xl font-black">{formatKRW(agreedPrice)}</p>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              Meetup location
-            </p>
-            <p className="font-medium">{agreedConditions.location}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              Meetup time
-            </p>
-            <p className="font-medium">{formatMeetTime(agreedConditions.meetTimeIso)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
-              Payment method
-            </p>
-            <p className="font-medium">{agreedConditions.payment}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t-2 border-bargo-ink">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-widest opacity-60 mb-0.5">
+                Location
+              </p>
+              <p className="text-sm font-medium">{agreedConditions.location}</p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-widest opacity-60 mb-0.5">
+                Time
+              </p>
+              <p className="text-sm font-medium">{formatMeetTime(agreedConditions.meetTimeIso)}</p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-widest opacity-60 mb-0.5">
+                Payment
+              </p>
+              <p className="text-sm font-medium">{agreedConditions.payment}</p>
+            </div>
           </div>
         </div>
 
@@ -145,8 +150,11 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         )}
 
         {state === 'settled' && (
-          <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
-            <p className="text-sm text-green-700 dark:text-green-300 font-medium">Escrow locked</p>
+          <div className="pixel-box bg-bargo-white p-3 flex items-center gap-2">
+            <span className="h-2 w-2 bg-bargo-accent" aria-hidden="true" />
+            <p className="font-mono text-xs font-bold uppercase tracking-wider">
+              Escrow locked
+            </p>
           </div>
         )}
       </div>

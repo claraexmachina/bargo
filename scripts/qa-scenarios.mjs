@@ -396,12 +396,6 @@ async function main() {
   await scenarioBoundaryLongTitle();
   await scenarioPrivacyNoLeak(s1Result);
 
-  record(
-    'S8 no-show Solidity',
-    true,
-    'Verified: contracts/test/BargoEscrow.t.sol::test_noShowFlow passes (forge test). See Foundry test run.',
-  );
-
   const passed = results.filter((r) => r.ok).length;
   const total = results.length;
   console.log(`\n=== ${passed}/${total} scenarios passed ===`);

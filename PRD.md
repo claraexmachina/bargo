@@ -154,7 +154,7 @@ Web (Next.js PWA) ──[sealed blob]──► Negotiation Service (Fastify + SQ
 - **PWA ↔ Negotiation Service**: REST 8개 (`GET /service-pubkey`, `POST /listing`, `POST /offer` (RLN proof 포함), `GET /status/:id`, `GET /attestation/:dealId`, `POST /attestation-receipt`, `POST /intents`, `GET /intent-matches`). 예약가·조건은 sealed blob으로만 전송 — plaintext wire 없음.
 - **Service ↔ NEAR AI**: OpenAI SDK, `cloud-api.near.ai/v1`, model `qwen3-30b`, `response_format: json_schema strict: true`. Plaintext는 ephemeral decrypt 후 in-memory에서만 NEAR AI prompt로 전달.
 - **Relayer → Contract**: `settleNegotiation(listingId, offerId, agreedPrice, agreedConditionsHash, nearAiAttestationHash)` — `onlyAttestationRelayer` modifier.
-- **Contract ↔ Client**: 이벤트 `ListingCreated`, `OfferSubmitted`, `NegotiationSettled` (indexed `nearAiAttestationHash`), `EscrowLocked`, `MeetupConfirmed`, `NoShowReported`.
+- **Contract ↔ Client**: 이벤트 `ListingCreated`, `OfferSubmitted`, `NegotiationSettled` (indexed `nearAiAttestationHash`), `EscrowLocked`, `MeetupConfirmed`, `FundsReleased`.
 
 ### 2.7 데이터 모델 (V3)
 
@@ -244,9 +244,8 @@ struct Deal {
   uint256 agreedPrice;              -- only price ever revealed (on settlement)
   bytes32 agreedConditionsHash;     -- keccak256(canonical(agreedConditions))
   bytes32 nearAiAttestationHash;    -- keccak256(canonical(attestation bundle))
-  DealState state;                  -- NONE|PENDING|LOCKED|COMPLETED|NOSHOW|REFUNDED
+  DealState state;                  -- NONE|PENDING|LOCKED|COMPLETED|REFUNDED
   uint64  createdAt;
-  uint64  lockedUntil;
 }
 ```
 

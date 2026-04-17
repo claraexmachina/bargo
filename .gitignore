@@ -35,7 +35,8 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 
-# Database
+# Database / runtime data
+data/
 data/*.db
 data/*.db-*
 

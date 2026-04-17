@@ -43,14 +43,13 @@ bargo/
 │   │   │   ├── listings/[id]/page.tsx
 │   │   │   ├── listings/new/page.tsx
 │   │   │   ├── offers/[id]/page.tsx
-│   │   │   ├── deals/[id]/page.tsx          # meetup + QR confirm
+│   │   │   ├── deals/[id]/page.tsx          # meetup confirm (buyer-only)
 │   │   │   └── api/                         # none — all API via negotiation-service
 │   │   ├── components/
 │   │   │   ├── ListingCard.tsx
 │   │   │   ├── ConditionInput.tsx           # natural language textarea
 │   │   │   ├── KarmaBadge.tsx
-│   │   │   ├── NegotiationStatus.tsx
-│   │   │   └── MeetupQR.tsx
+│   │   │   └── NegotiationStatus.tsx
 │   │   ├── lib/
 │   │   │   ├── wagmi.ts
 │   │   │   ├── api.ts                       # REST client, types from @bargo/shared
@@ -416,7 +415,7 @@ verifyingContract: BargoEscrow address
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-enum DealState { NONE, PENDING, LOCKED, COMPLETED, NOSHOW, REFUNDED }
+enum DealState { NONE, PENDING, LOCKED, COMPLETED, REFUNDED }
 
 struct Listing {
     address seller;
@@ -437,7 +436,6 @@ struct Deal {
     bytes32 enclaveId;
     DealState state;
     uint64  createdAt;
-    uint64  lockedUntil;          // createdAt + SETTLEMENT_WINDOW
 }
 
 interface IBargoEscrow {
@@ -450,8 +448,7 @@ interface IBargoEscrow {
     error AttestationSigInvalid();
     error DealNotLocked(bytes32 dealId);
     error NotParticipant(address who);
-    error AlreadyConfirmed(address who);
-    error SettlementWindowOpen(bytes32 dealId);
+    error NotBuyer(address who);
     error ZeroAddress();
     error ZeroAmount();
 
@@ -479,7 +476,7 @@ interface IBargoEscrow {
         bytes32 attestationHash
     );
     event MeetupConfirmed(bytes32 indexed dealId, address indexed by);
-    event NoShowReported(bytes32 indexed dealId, address indexed reporter, address indexed accused);
+    event FundsReleased(bytes32 indexed dealId, address indexed seller, uint256 amount);
     event ThroughputExceededEvent(address indexed who, uint256 current);
 
     // ─── state-changing ───
@@ -505,9 +502,7 @@ interface IBargoEscrow {
     ) external returns (bytes32 dealId);
 
     function lockEscrow(bytes32 dealId) external payable;          // buyer locks agreedPrice
-    function confirmMeetup(bytes32 dealId) external;                // both parties call → release
-    function reportNoShow(bytes32 dealId) external;                 // after lockedUntil
-    function refund(bytes32 dealId) external;                       // post-timeout, buyer pulls
+    function confirmMeetup(bytes32 dealId) external;                // buyer only → release to seller
 
     // ─── views ───
     function getListing(bytes32 listingId) external view returns (Listing memory);
@@ -569,18 +564,17 @@ NONE
  └── registerListing ─────────────► (Listing.active=true)
  └── submitOffer ─────────────────► (OfferSubmitted event, Deal still NONE)
  └── settleNegotiation ─► PENDING ─► lockEscrow ─► LOCKED
-                                                    │
-                               ┌────────────────────┼────────────────────┐
-                               ▼                    ▼                    ▼
-                      both confirmMeetup    reportNoShow (one)    after lockedUntil
-                               │                    │                    │
-                               ▼                    ▼                    ▼
-                          COMPLETED             NOSHOW ──► refund ──► REFUNDED
-                          (release to
-                           seller)
+                            │                        │
+                            ▼                        ▼
+                     cancelOffer ─► REFUNDED   buyer confirmMeetup
+                                                     │
+                                                     ▼
+                                                 COMPLETED
+                                                 (release to
+                                                  seller)
 ```
 
-`SETTLEMENT_WINDOW = 24 hours` (constant).
+Only the buyer can call `confirmMeetup`. There is no timeout / no-show / refund path — the deal stays LOCKED until the buyer confirms.
 
 ### 3.5 Encryption envelope — exact byte layout
 
@@ -716,7 +710,7 @@ A phase ending without its exit criterion met triggers **replanning** (not push-
 | 2 | Status Network gasless relayer misconfigured → buyer pays gas, US-4 fails. | frontend-lead + contract-lead | Follow Scaffold-ETH Status extension exactly; rehearse gasless tx by T+20h; contact @yjkellyjoo by T+8h if blocked. Fallback: document as known-limitation in demo script if not working. |
 | 3 | RLN SDK absence blocks US-6. | service-lead | Stub interface from T+0; swap to SDK only if available by T+24h; otherwise ship stub + honest demo disclosure ("RLN mock"). Contract ABI unchanged either way. |
 | 4 | TEE attestation signature verification on-chain — Ed25519 is not a native precompile on Hoodi. | contract-lead | Use `@noble/ed25519` derived sig scheme OR switch TEE signer to secp256k1 (native `ecrecover`). **Decision: use secp256k1 in enclave** (TEE lead generates secp256k1 keypair; simpler on-chain verify, identical security). Update §3.1 `signature` comment accordingly — planner will revise post-kickoff vote. |
-| 5 | Throughput counter integrity if settlement races offer submission. | contract-lead | `activeNegotiations[who]` incremented in `submitOffer`, decremented in `settleNegotiation`/`cancelOffer`/`confirmMeetup`. Unit test the race: offer → offer → settle → offer (should succeed if under cap). Use `unchecked` only for decrement with `>0` guard. |
+| 5 | Throughput counter integrity if settlement races offer submission. | contract-lead | `activeNegotiations[who]` incremented in `submitOffer`, decremented in `settleNegotiation` (`cancelOffer` does not double-decrement). Unit test the race: offer → offer → settle → offer (should succeed if under cap). Use `unchecked` only for decrement with `>0` guard. |
 
 ---
 
@@ -762,7 +756,7 @@ A phase ending without its exit criterion met triggers **replanning** (not push-
 | 3 | **NEAR AI Cloud base URL + chosen model ID.** PRD calls out `"near-ai/llama-3.1-..."` as placeholder. | §2.8 | Pin the exact model tag at T+0 and write to `ENCLAVE_WHITELIST` + `modelId` constant. | tee-lead, T+1h |
 | 4 | **Karma SNT staking threshold units** — PRD gives no KRW→SNT mapping. `HIGH_VALUE_THRESHOLD_WEI` is a placeholder. | §2.4 US-2, §2.4 US-5 | Use demo-friendly round numbers (tier2 = 100 SNT, high-value = 500k wei-equiv in demo token). | contract-lead, T+4h |
 | 5 | **RLN epoch length** — not specified. | §US-6 | 300 seconds. | service-lead, T+4h |
-| 6 | **Meetup confirmation mechanism** — QR implies one party scans the other's dynamic code; PRD is light on spec. | §US-4, §2.12 | Buyer's QR encodes `EIP-712 sign(dealId, "confirm")`; seller scans and co-signs on their phone; both sigs submitted in one `confirmMeetup` tx. | frontend-lead + contract-lead, T+18h |
+| 6 | **Meetup confirmation mechanism** — how does the buyer signal that the in-person exchange completed? | §US-4, §2.12 | Buyer clicks "Confirm meetup & release funds" in the deal page; web calls `confirmMeetup(dealId)` on-chain, contract transitions `LOCKED → COMPLETED` and releases escrow to the seller in the same tx. No QR, no seller-side action. | frontend-lead + contract-lead |
 | 7 | **Gasless relayer spec** — Status provides; exact endpoint + caps unknown until T+0. | §US-4 | Follow Scaffold-ETH Status extension docs; capture into `docs/env-reference.md`. | frontend-lead, T+8h |
 | 8 | **Seller's role in RLN** — PRD specifies RLN on offers (§US-6); does seller listing creation need RLN too? | §US-6 | Listings limited to 1 per 5min per seller via simple contract nonce check; no RLN for listings (scope). | contract-lead, T+4h |
 

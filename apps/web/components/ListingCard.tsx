@@ -1,5 +1,4 @@
 import { KarmaBadge } from '@/components/KarmaBadge';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import type { KarmaTier, ListingPublic } from '@bargo/shared';
 import Link from 'next/link';
 
@@ -18,36 +17,42 @@ export function ListingCard({ listing }: ListingCardProps) {
   return (
     <Link
       href={`/listings/${listing.id}`}
-      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+      className="block focus:outline-none focus-visible:ring-4 focus-visible:ring-bargo-accent group"
     >
-      <Card className="h-full hover:border-primary/50 transition-colors">
-        {listing.itemMeta.images[0] && (
+      <div className="pixel-box h-full transition-transform group-hover:-translate-x-[1px] group-hover:-translate-y-[1px] group-hover:shadow-pixel-lg">
+        {listing.itemMeta.images[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={listing.itemMeta.images[0]}
             alt={listing.itemMeta.title}
-            className="h-40 w-full rounded-t-lg object-cover"
+            className="h-40 w-full object-cover border-b-4 border-bargo-ink"
           />
-        )}
-        <CardContent className="pt-4 space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold line-clamp-2">{listing.itemMeta.title}</h3>
+        ) : (
+          <div className="h-40 w-full bg-bargo-mint border-b-4 border-bargo-ink flex items-center justify-center font-pixel text-xs opacity-50">
+            NO IMG
           </div>
+        )}
+        <div className="p-4 space-y-3">
+          <h3 className="font-mono font-black uppercase text-sm tracking-wide line-clamp-2">
+            {listing.itemMeta.title}
+          </h3>
           <div
             data-testid="sealed-bid-badge"
-            className="inline-flex items-center rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary"
+            className="pixel-pill bg-bargo-accent"
           >
-            Sealed-bid · Tier {listing.requiredKarmaTier}+ (
-            {TIER_REQUIRED_LABEL[listing.requiredKarmaTier]})
+            Sealed · Tier {listing.requiredKarmaTier}+ ({TIER_REQUIRED_LABEL[listing.requiredKarmaTier]})
           </div>
-          <p className="text-sm text-muted-foreground line-clamp-2">
+          <p className="text-xs leading-snug opacity-80 line-clamp-2">
             {listing.itemMeta.description}
           </p>
-        </CardContent>
-        <CardFooter className="flex items-center justify-between pt-0">
+        </div>
+        <div className="flex items-center justify-between border-t-4 border-bargo-ink p-3">
           <KarmaBadge tier={0} showLabel={false} />
-        </CardFooter>
-      </Card>
+          <span className="font-mono text-[10px] uppercase tracking-widest opacity-60">
+            Open →
+          </span>
+        </div>
+      </div>
     </Link>
   );
 }

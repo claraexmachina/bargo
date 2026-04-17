@@ -132,13 +132,10 @@ contract BargoEscrowTest is Test {
         deal = escrow.getDeal(dealId);
         assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.LOCKED));
 
-        // 5. Both confirm meetup → funds released to seller
+        // 5. Buyer confirms meetup → funds released to seller immediately
         uint256 sellerBefore = seller.balance;
 
         vm.prank(buyer);
-        escrow.confirmMeetup(dealId);
-
-        vm.prank(seller);
         escrow.confirmMeetup(dealId);
 
         deal = escrow.getDeal(dealId);
@@ -358,51 +355,6 @@ contract BargoEscrowTest is Test {
         escrow.submitOffer(listings[3], encoded);
     }
 
-    // ─── No-show flow ───
-
-    function test_noShowFlow() public {
-        bytes32 listingId = _registerListing(0);
-        bytes32 offerId = _submitOffer(buyer, listingId);
-        bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
-
-        vm.deal(buyer, AGREED_PRICE);
-        vm.prank(buyer);
-        escrow.lockEscrow{value: AGREED_PRICE}(dealId);
-
-        // Warp past lockedUntil
-        vm.warp(block.timestamp + escrow.SETTLEMENT_WINDOW() + 1);
-
-        // Report no-show
-        vm.prank(buyer);
-        escrow.reportNoShow(dealId);
-
-        BargoEscrow.Deal memory deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.NOSHOW));
-
-        // Buyer pulls refund
-        uint256 buyerBefore = buyer.balance;
-        vm.prank(buyer);
-        escrow.refund(dealId);
-
-        deal = escrow.getDeal(dealId);
-        assertEq(uint8(deal.state), uint8(BargoEscrow.DealState.REFUNDED));
-        assertEq(buyer.balance, buyerBefore + AGREED_PRICE);
-    }
-
-    function test_reportNoShowBeforeWindowReverts() public {
-        bytes32 listingId = _registerListing(0);
-        bytes32 offerId = _submitOffer(buyer, listingId);
-        bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
-
-        vm.deal(buyer, AGREED_PRICE);
-        vm.prank(buyer);
-        escrow.lockEscrow{value: AGREED_PRICE}(dealId);
-
-        vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.SettlementWindowOpen.selector, dealId));
-        escrow.reportNoShow(dealId);
-    }
-
     // ─── guard conditions ───
 
     function test_listingNotActiveReverts() public {
@@ -425,7 +377,8 @@ contract BargoEscrowTest is Test {
         escrow.lockEscrow{value: 1 ether}(dealId);
     }
 
-    function test_nonParticipantConfirmReverts() public {
+    function test_nonBuyerConfirmReverts() public {
+        // Only the buyer can confirm meetup — seller and third parties must revert.
         bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
@@ -435,7 +388,11 @@ contract BargoEscrowTest is Test {
         escrow.lockEscrow{value: AGREED_PRICE}(dealId);
 
         vm.prank(eve);
-        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.NotParticipant.selector, eve));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.NotBuyer.selector, eve));
+        escrow.confirmMeetup(dealId);
+
+        vm.prank(seller);
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.NotBuyer.selector, seller));
         escrow.confirmMeetup(dealId);
     }
 
@@ -472,20 +429,8 @@ contract BargoEscrowTest is Test {
         escrow.cancelOffer(fakeId);
     }
 
-    // ─── refund error ───
-
-    function test_refund_wrongState_reverts_DealNotInNoShow() public {
-        // refund() when state is PENDING (not NOSHOW) should revert with DealNotInNoShow.
-        bytes32 listingId = _registerListing(0);
-        bytes32 offerId = _submitOffer(buyer, listingId);
-        bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
-
-        vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.DealNotInNoShow.selector, dealId));
-        escrow.refund(dealId);
-    }
-
-    function test_doubleConfirmReverts() public {
+    function test_confirmMeetupAfterCompletedReverts() public {
+        // Once completed, calling confirmMeetup again reverts with DealNotLocked.
         bytes32 listingId = _registerListing(0);
         bytes32 offerId = _submitOffer(buyer, listingId);
         bytes32 dealId = _settleNegotiation(listingId, offerId, AGREED_PRICE);
@@ -498,7 +443,7 @@ contract BargoEscrowTest is Test {
         escrow.confirmMeetup(dealId);
 
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.AlreadyConfirmed.selector, buyer));
+        vm.expectRevert(abi.encodeWithSelector(BargoEscrow.DealNotLocked.selector, dealId));
         escrow.confirmMeetup(dealId);
     }
 }

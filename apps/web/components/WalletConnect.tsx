@@ -2,12 +2,22 @@
 
 import { Button } from '@/components/ui/button';
 import { truncateAddress } from '@/lib/format';
+import { useMounted } from '@/lib/use-mounted';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 
 export function WalletConnect() {
+  const mounted = useMounted();
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+
+  if (!mounted) {
+    return (
+      <Button size="sm" disabled aria-label="Loading wallet">
+        Connect wallet
+      </Button>
+    );
+  }
 
   if (isConnected && address) {
     return (

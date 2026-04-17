@@ -1,46 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 20 14% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 20 14% 4%;
-    --muted: 60 4.8% 95.9%;
-    --muted-foreground: 25 5.3% 44.7%;
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
-    --ring: 38 92% 50%;
-    --radius: 0.5rem;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 60 9.1% 97.8%;
+    --bargo-bg: #b9cff1;
+    --bargo-ink: #353b51;
+    --bargo-accent: #ffd700;
+    --bargo-soft: #ffc3c3;
+    --bargo-white: #ffffff;
+    --bargo-mint: #9dbbe6;
   }
 
-  .dark {
-    --background: 20 14% 4%;
-    --foreground: 60 9.1% 97.8%;
-    --card: 20 14% 4%;
-    --card-foreground: 60 9.1% 97.8%;
-    --muted: 12 6.5% 15.1%;
-    --muted-foreground: 24 5.4% 63.9%;
-    --border: 12 6.5% 15.1%;
-    --input: 12 6.5% 15.1%;
-    --ring: 38 92% 50%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 60 9.1% 97.8%;
-  }
-
-  * {
-    @apply border-border;
+  html,
+  body {
+    background-color: var(--bargo-bg);
+    color: var(--bargo-ink);
+    font-family: 'Helvetica Neue', Arial, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    /* Subtle dotted grid — the pixel-world backdrop */
+    background-image: radial-gradient(circle at 1px 1px, rgba(53, 59, 81, 0.08) 1px, transparent 0);
+    background-size: 16px 16px;
+  }
+
+  ::selection {
+    background-color: var(--bargo-accent);
+    color: var(--bargo-ink);
   }
 }
 
-/* Pretendard font — use CDN for demo */
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+@layer components {
+  /* ---- Core pixel surfaces ---- */
+  .pixel-box {
+    @apply border-4 border-bargo-ink bg-bargo-white;
+    box-shadow: 4px 4px 0 var(--bargo-ink);
+  }
+
+  .pixel-box-soft {
+    @apply border-4 border-bargo-ink bg-bargo-white;
+    box-shadow: 4px 4px 0 rgba(53, 59, 81, 0.15);
+  }
+
+  /* ---- Pixel button ---- */
+  .pixel-btn {
+    @apply inline-flex items-center justify-center gap-2 bg-bargo-accent border-4 border-bargo-ink text-bargo-ink font-mono font-bold px-6 py-3 cursor-pointer uppercase tracking-wider;
+    box-shadow: 4px 4px 0 var(--bargo-ink);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+    text-decoration: none;
+  }
+
+  .pixel-btn:hover {
+    filter: brightness(1.08);
+    transform: translate(1px, 1px);
+    box-shadow: 3px 3px 0 var(--bargo-ink);
+  }
+
+  .pixel-btn:active {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0 var(--bargo-ink);
+  }
+
+  .pixel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(0.3);
+  }
+
+  .pixel-btn-secondary {
+    @apply bg-bargo-white;
+  }
+
+  .pixel-btn-ghost {
+    @apply bg-transparent;
+    box-shadow: none;
+  }
+
+  .pixel-btn-ghost:hover {
+    @apply bg-bargo-white;
+    box-shadow: 2px 2px 0 var(--bargo-ink);
+    transform: translate(0, 0);
+  }
+
+  /* ---- Terminal-style readout ---- */
+  .demo-window {
+    @apply border-4 border-bargo-ink font-mono p-4 overflow-hidden;
+    background: #0a0f0a;
+    color: #4ade80;
+    font-family: 'VT323', 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: 4px 4px 0 var(--bargo-ink);
+  }
+
+  /* ---- Hero tag ---- */
+  .hero-tag {
+    @apply inline-block font-mono text-xs px-3 py-1 border-2 border-bargo-ink bg-bargo-soft uppercase tracking-widest font-black;
+  }
+
+  /* ---- Tech strip (footer) ---- */
+  .tech-strip {
+    @apply flex flex-wrap items-center gap-6 px-4 py-3 bg-bargo-ink text-bargo-white font-mono text-[11px];
+  }
+
+  /* ---- Logo mark (pixel "B" block) ---- */
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background-color: var(--bargo-ink);
+    clip-path: polygon(
+      0 20%, 20% 20%, 20% 0,
+      80% 0, 80% 20%, 100% 20%,
+      100% 80%, 80% 80%, 80% 100%,
+      20% 100%, 20% 80%, 0 80%
+    );
+  }
+
+  /* ---- Form fields ---- */
+  .pixel-field {
+    @apply w-full border-4 border-bargo-ink bg-bargo-white px-3 py-2 font-mono text-sm placeholder:text-bargo-ink/40;
+    box-shadow: inset 2px 2px 0 rgba(53, 59, 81, 0.08);
+  }
+
+  .pixel-field:focus {
+    outline: none;
+    box-shadow:
+      inset 2px 2px 0 rgba(53, 59, 81, 0.08),
+      4px 4px 0 var(--bargo-accent);
+  }
+
+  /* ---- Dashed bordered panel (value grid) ---- */
+  .pixel-dash {
+    @apply border-2 border-dashed border-bargo-ink bg-bargo-white/50 p-6;
+  }
+
+  /* ---- Inline pill (labels/badges) ---- */
+  .pixel-pill {
+    @apply inline-flex items-center gap-1.5 border-2 border-bargo-ink bg-bargo-white px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide;
+  }
+}
+
+@layer utilities {
+  .text-shadow-pixel {
+    text-shadow: 3px 3px 0 var(--bargo-ink);
+  }
+
+  .bg-scanlines {
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgba(53, 59, 81, 0.04) 0px,
+      rgba(53, 59, 81, 0.04) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+}

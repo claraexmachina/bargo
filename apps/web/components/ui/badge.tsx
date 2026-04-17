@@ -3,19 +3,19 @@ import { type VariantProps, cva } from 'class-variance-authority';
 import type * as React from 'react';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors',
+  'inline-flex items-center gap-1 border-2 border-bargo-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider leading-none',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary text-white',
-        secondary: 'border-transparent bg-muted text-foreground',
-        destructive: 'border-transparent bg-destructive text-destructive-foreground',
-        outline: 'text-foreground',
-        // Karma tier variants
-        newcomer: 'border-transparent bg-gray-200 text-gray-700',
-        regular: 'border-transparent bg-blue-100 text-blue-700',
-        trusted: 'border-transparent bg-purple-100 text-purple-700',
-        elite: 'border-transparent bg-amber-100 text-amber-700',
+        default: 'bg-bargo-accent text-bargo-ink',
+        secondary: 'bg-bargo-soft text-bargo-ink',
+        destructive: 'bg-destructive text-white',
+        outline: 'bg-transparent text-bargo-ink',
+        // Karma tiers — mapped to pixel palette
+        newcomer: 'bg-bargo-white text-bargo-ink',
+        regular: 'bg-bargo-mint text-bargo-ink',
+        trusted: 'bg-bargo-soft text-bargo-ink',
+        elite: 'bg-bargo-accent text-bargo-ink',
       },
     },
     defaultVariants: {

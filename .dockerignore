@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/.next
+**/data
+**/*.log
+**/.env
+**/.env.*
+.git
+.github
+.vscode
+docs
+scripts/fixtures
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/lib

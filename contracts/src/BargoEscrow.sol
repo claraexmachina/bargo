@@ -9,10 +9,6 @@ import {IRLNVerifier} from "./interfaces/IRLNVerifier.sol";
 ///         Enforces Karma tier gating, RLN rate-limiting, and NEAR AI attestation hash recording.
 ///         V3: Sealed-bid — no price on Listing or Offer. agreedPrice is revealed only at settlement.
 contract BargoEscrow {
-    // ─── constants ───
-
-    uint256 public constant SETTLEMENT_WINDOW = 86_400; // 24 hours
-
     // ─── types ───
 
     enum DealState {
@@ -20,7 +16,6 @@ contract BargoEscrow {
         PENDING,
         LOCKED,
         COMPLETED,
-        NOSHOW,
         REFUNDED
     }
 
@@ -42,7 +37,6 @@ contract BargoEscrow {
         bytes32 nearAiAttestationHash;
         DealState state;
         uint64 createdAt;
-        uint64 lockedUntil;
     }
 
     // ─── errors ───
@@ -53,10 +47,8 @@ contract BargoEscrow {
     error ListingNotActive(bytes32 listingId);
     error DealNotLocked(bytes32 dealId);
     error DealNotPending(bytes32 dealId);
-    error DealNotInNoShow(bytes32 dealId);
     error NotParticipant(address who);
-    error AlreadyConfirmed(address who);
-    error SettlementWindowOpen(bytes32 dealId);
+    error NotBuyer(address who);
     error ZeroAddress();
     error ZeroAmount();
     error WrongEscrowAmount(uint256 sent, uint256 required);
@@ -82,10 +74,8 @@ contract BargoEscrow {
     );
     event EscrowLocked(bytes32 indexed dealId, address indexed buyer, uint256 amount);
     event MeetupConfirmed(bytes32 indexed dealId, address indexed by);
-    event NoShowReported(bytes32 indexed dealId, address indexed reporter, address indexed accused);
     event ThroughputExceededEvent(address indexed who, uint256 current);
     event FundsReleased(bytes32 indexed dealId, address indexed seller, uint256 amount);
-    event FundsRefunded(bytes32 indexed dealId, address indexed buyer, uint256 amount);
     event AttestationRelayerUpdated(address indexed previous, address indexed current);
 
     // ─── state ───
@@ -103,9 +93,6 @@ contract BargoEscrow {
 
     /// @notice offerId => buyer address (set at submitOffer time).
     mapping(bytes32 => address) private _offerBuyer;
-
-    /// @notice Confirmation state per deal per participant.
-    mapping(bytes32 => mapping(address => bool)) private _confirmed;
 
     // ─── modifiers ───
 
@@ -229,8 +216,7 @@ contract BargoEscrow {
             agreedConditionsHash: agreedConditionsHash,
             nearAiAttestationHash: nearAiAttestationHash,
             state: DealState.PENDING,
-            createdAt: uint64(block.timestamp),
-            lockedUntil: uint64(block.timestamp + SETTLEMENT_WINDOW)
+            createdAt: uint64(block.timestamp)
         });
 
         // Decrement throughput for the buyer on successful settlement
@@ -256,49 +242,20 @@ contract BargoEscrow {
         emit EscrowLocked(dealId, msg.sender, msg.value);
     }
 
-    /// @notice Either party confirms the meetup. On second confirmation, funds release to seller.
+    /// @notice Buyer confirms the meetup. Funds release to seller immediately.
     function confirmMeetup(bytes32 dealId) external {
         Deal storage deal = _deals[dealId];
         if (deal.state != DealState.LOCKED) revert DealNotLocked(dealId);
-        if (msg.sender != deal.seller && msg.sender != deal.buyer) revert NotParticipant(msg.sender);
-        if (_confirmed[dealId][msg.sender]) revert AlreadyConfirmed(msg.sender);
+        if (msg.sender != deal.buyer) revert NotBuyer(msg.sender);
 
-        _confirmed[dealId][msg.sender] = true;
-        emit MeetupConfirmed(dealId, msg.sender);
-
-        if (_confirmed[dealId][deal.seller] && _confirmed[dealId][deal.buyer]) {
-            deal.state = DealState.COMPLETED;
-            uint256 amount = deal.agreedPrice;
-            address sellerAddr = deal.seller;
-            emit FundsReleased(dealId, sellerAddr, amount);
-            (bool ok,) = sellerAddr.call{value: amount}("");
-            require(ok);
-        }
-    }
-
-    /// @notice Any participant can report no-show after lockedUntil has passed.
-    function reportNoShow(bytes32 dealId) external {
-        Deal storage deal = _deals[dealId];
-        if (deal.state != DealState.LOCKED) revert DealNotLocked(dealId);
-        if (msg.sender != deal.seller && msg.sender != deal.buyer) revert NotParticipant(msg.sender);
-        if (block.timestamp <= deal.lockedUntil) revert SettlementWindowOpen(dealId);
-
-        address accused = msg.sender == deal.buyer ? deal.seller : deal.buyer;
-        deal.state = DealState.NOSHOW;
-        emit NoShowReported(dealId, msg.sender, accused);
-    }
-
-    /// @notice After NOSHOW, buyer pulls the refund.
-    function refund(bytes32 dealId) external {
-        Deal storage deal = _deals[dealId];
-        if (deal.state != DealState.NOSHOW) revert DealNotInNoShow(dealId);
-        if (msg.sender != deal.buyer) revert NotParticipant(msg.sender);
-
-        deal.state = DealState.REFUNDED;
+        deal.state = DealState.COMPLETED;
         uint256 amount = deal.agreedPrice;
-        address buyerAddr = deal.buyer;
-        emit FundsRefunded(dealId, buyerAddr, amount);
-        (bool ok,) = buyerAddr.call{value: amount}("");
+        address sellerAddr = deal.seller;
+
+        emit MeetupConfirmed(dealId, msg.sender);
+        emit FundsReleased(dealId, sellerAddr, amount);
+
+        (bool ok,) = sellerAddr.call{value: amount}("");
         require(ok);
     }
 

@@ -2,6 +2,7 @@
 
 import { ConditionInput } from '@/components/ConditionInput';
 import { PriceInput } from '@/components/PriceInput';
+import { NetworkGuard } from '@/components/NetworkGuard';
 import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -208,13 +209,7 @@ export default function NewListingPage() {
         <WalletConnect />
       </div>
 
-      {chainId !== HOODI_CHAIN_ID && (
-        <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            Please switch to Hoodi network (chainId {HOODI_CHAIN_ID}).
-          </p>
-        </div>
-      )}
+      <NetworkGuard />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic info */}

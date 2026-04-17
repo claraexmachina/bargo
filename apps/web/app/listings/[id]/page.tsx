@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useListing } from '@/lib/api';
+import { findDemoListing } from '@/lib/demo-listings';
 import { formatKRW } from '@/lib/format';
 import type { Address, KarmaTier, ListingId } from '@bargo/shared';
 import { ADDRESSES, karmaReaderAbi } from '@bargo/shared';
@@ -37,7 +38,10 @@ export default function ListingDetailPage() {
   const listingId = params.id as ListingId;
   const { address } = useAccount();
 
-  const { data: listing, isLoading, error } = useListing(listingId);
+  const { data: fetchedListing, isLoading } = useListing(listingId);
+  // Fall back to local demo data when the negotiation service isn't reachable —
+  // keeps the UI browsable in frontend-only demo mode.
+  const listing = fetchedListing ?? findDemoListing(listingId);
 
   // Read buyer's own Karma tier for offer-button gating
   const { data: contractBuyerTier } = useReadContract({
@@ -52,7 +56,7 @@ export default function ListingDetailPage() {
       ? (Number(contractBuyerTier) as KarmaTier)
       : (DEMO_TIER_MAP[address?.toLowerCase() ?? ''] ?? 0);
 
-  if (isLoading) {
+  if (isLoading && !listing) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-8 bg-muted rounded w-2/3" />
@@ -62,7 +66,7 @@ export default function ListingDetailPage() {
     );
   }
 
-  if (error || !listing) {
+  if (!listing) {
     return (
       <div className="text-center py-20 space-y-4">
         <p className="text-muted-foreground">Listing not found.</p>
