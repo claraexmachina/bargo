@@ -19,6 +19,11 @@ import { createPublicClient, http, keccak256 } from 'viem';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 
+// RFC 8785 canonicalize — same package used by the negotiation service's attestation.ts.
+// This ensures the hash computed here matches the on-chain hash exactly, including
+// for any future non-integer or non-ASCII fields in the bundle.
+import canonicalizeLib from 'canonicalize';
+
 // ─── constants ───────────────────────────────────────────────────────────────
 
 const HOODI_RPC = process.env.HOODI_RPC ?? 'https://public.hoodi.rpc.status.network';
@@ -44,14 +49,13 @@ const HAGGLE_ESCROW_ABI = [
 ];
 
 // ─── canonicalize ─────────────────────────────────────────────────────────────
-// Deterministic JSON: keys sorted alphabetically at every level.
-// Must match Agent B's convention in apps/negotiation-service/src/nearai/attestation.ts.
+// Uses the 'canonicalize' npm package (RFC 8785 JCS) — same as the negotiation
+// service's attestation.ts producer. This is the authoritative canonicalization.
 
 function canonicalize(v) {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v);
-  if (Array.isArray(v)) return '[' + v.map(canonicalize).join(',') + ']';
-  const keys = Object.keys(v).sort();
-  return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonicalize(v[k])).join(',') + '}';
+  const result = canonicalizeLib(v);
+  if (result === undefined) throw new Error('canonicalize returned undefined');
+  return result;
 }
 
 // ─── arg parsing ──────────────────────────────────────────────────────────────

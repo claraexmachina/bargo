@@ -9,7 +9,9 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
 
   // NEAR AI Cloud
-  NEAR_AI_API_KEY: z.string().min(1, 'NEAR_AI_API_KEY is required'),
+  // Empty key is allowed for local dev / CI without a real account; attestation calls will fail.
+  // Get a key from https://near.ai/console and add to .env.local as NEAR_AI_API_KEY=<key>.
+  NEAR_AI_API_KEY: z.string().default(''),
   NEAR_AI_BASE_URL: z.string().url().default('https://cloud-api.near.ai/v1'),
   NEAR_AI_MODEL: z.string().default('qwen3-30b'),
   NEAR_AI_TIMEOUT_MS: z.coerce.number().int().positive().default(8_000),
@@ -43,6 +45,14 @@ if (!parsed.success) {
 }
 
 const env = parsed.data;
+
+// Warn loudly if NEAR_AI_API_KEY is empty — attestation will be broken.
+if (!env.NEAR_AI_API_KEY) {
+  console.warn(
+    '[config] NEAR_AI_API_KEY is not set — attestation calls will fail. ' +
+    'Get a key from https://near.ai/console and add NEAR_AI_API_KEY=<key> to .env.local',
+  );
+}
 
 export const config = {
   port: env.PORT,

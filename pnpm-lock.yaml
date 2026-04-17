@@ -200,6 +200,9 @@ importers:
       '@noble/secp256k1':
         specifier: ^2.1.0
         version: 2.3.0
+      canonicalize:
+        specifier: ^2.0.0
+        version: 2.1.0
       viem:
         specifier: ^2.21.54
         version: 2.48.1(bufferutil@4.1.0)(typescript@5.5.4)(utf-8-validate@5.0.10)(zod@4.3.6)

@@ -1,7 +1,7 @@
 // Routes integration tests — uses Fastify's .inject() (no real HTTP).
 // runNegotiation (engine) and chain reads are stubbed via vi.mock.
 
-import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import Database from 'better-sqlite3';
@@ -23,6 +23,7 @@ vi.mock('../src/negotiate/engine.js', () => ({
       offerId: '0x' + '02'.repeat(32),
       agreedPrice: '750000',
       agreedConditions: { location: 'gangnam', meetTimeIso: '2026-04-20T19:00:00+09:00', payment: 'cash' },
+      agreedConditionsHash: '0x' + 'dd'.repeat(32),  // distinct from nearAiAttestationHash
       modelId: 'qwen3-30b',
       completionId: 'chatcmpl-test',
       nonce: '0x' + 'aa'.repeat(32),
@@ -42,6 +43,7 @@ vi.mock('../src/negotiate/engine.js', () => ({
       },
       signature: '0x' + 'ff'.repeat(4),
     },
+    attestationBundlePath: '/tmp/test-attestations/0x0000.json',
   }),
 }));
 
@@ -59,6 +61,12 @@ vi.mock('../src/nearai/attestation.js', () => ({
   hashBundle: vi.fn(),
   canonicalizeBundle: vi.fn(),
   runStartupAttestationCheck: vi.fn(),
+}));
+
+// --- Mock on-chain ID verification ---
+vi.mock('../src/chain/verifyIds.js', () => ({
+  verifyListingOnChain: vi.fn().mockResolvedValue({ seller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' }),
+  verifyOfferOnChain: vi.fn().mockResolvedValue({ buyer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' }),
 }));
 
 // --- Helpers ---
@@ -122,19 +130,26 @@ async function buildApp(
   return app;
 }
 
-function makeValidListing() {
+const LISTING_ID = ('0x' + 'a1'.repeat(32)) as const;
+const OFFER_ID = ('0x' + 'b2'.repeat(32)) as const;
+const ONCHAIN_TX_HASH = ('0x' + 'c3'.repeat(32)) as const;
+
+function makeValidListing(overrides?: { listingId?: string }) {
   return {
+    listingId: overrides?.listingId ?? LISTING_ID,
     seller: SELLER,
     askPrice: '1000000',
     requiredKarmaTier: 0,
     itemMeta: { title: 'MacBook M1', description: 'Good condition', category: 'electronics', images: [] },
     plaintextMinSell: '800000',
     plaintextSellerConditions: '강남, 주말 오후',
+    onchainTxHash: ONCHAIN_TX_HASH,
   };
 }
 
-function makeValidOffer(listingId: string, nullifier?: string) {
+function makeValidOffer(listingId: string, nullifier?: string, offerId?: string) {
   return {
+    offerId: offerId ?? OFFER_ID,
     buyer: BUYER,
     listingId,
     bidPrice: '900000',
@@ -147,6 +162,7 @@ function makeValidOffer(listingId: string, nullifier?: string) {
       signalHash: '0x' + '22'.repeat(32),
       rlnIdentityCommitment: '0x' + '33'.repeat(32),
     },
+    onchainTxHash: ONCHAIN_TX_HASH,
   };
 }
 
@@ -168,9 +184,9 @@ describe('POST /listing', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    const body = res.json<{ listingId: string; onchainTxHash: null }>();
-    expect(body.listingId).toMatch(/^0x[0-9a-fA-F]{64}$/);
-    expect(body.onchainTxHash).toBeNull();
+    const body = res.json<{ listingId: string; onchainTxHash: string }>();
+    expect(body.listingId).toBe(LISTING_ID);
+    expect(body.onchainTxHash).toBe(ONCHAIN_TX_HASH);
 
     // Verify DB row exists
     const row = db.prepare('SELECT * FROM listings WHERE id = ?').get(
@@ -211,17 +227,17 @@ describe('POST /listing', () => {
 
 describe('POST /offer', () => {
   let db: Database.Database;
-  let listingId: string;
+  // listingId is always LISTING_ID (the on-chain id passed in makeValidListing)
+  const listingId = LISTING_ID;
 
   beforeEach(async () => {
     db = buildDb();
     const app = await buildApp(db);
-    const res = await app.inject({
+    await app.inject({
       method: 'POST',
       url: '/listing',
       payload: makeValidListing(),
     });
-    listingId = (res.json() as { listingId: string }).listingId;
   });
 
   afterEach(() => { db.close(); });
