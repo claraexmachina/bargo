@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
 import Link from 'next/link';
-import type { ListingId, KarmaTier } from '@haggle/shared';
+import type { ListingId, KarmaTier, Address } from '@haggle/shared';
+import { karmaReaderAbi, ADDRESSES } from '@haggle/shared';
 import { useListing } from '@/lib/api';
 import { KarmaBadge } from '@/components/KarmaBadge';
+import { UserKarma } from '@/components/UserKarma';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +22,16 @@ const REQUIRED_TIER_LABEL: Record<KarmaTier, string> = {
   3: 'Elite (Tier 3)만',
 };
 
+// Demo tier map — used when KarmaReader is not yet deployed (matches Seed.s.sol)
+const DEMO_TIER_MAP: Record<string, KarmaTier> = {
+  '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266': 3,
+  '0x70997970c51812dc3a010c7d01b50e0d17dc79c8': 1,
+  '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc': 0,
+};
+
+const KARMA_READER_ADDRESS = (ADDRESSES[374] as { karmaReader?: Address } | undefined)
+  ?.karmaReader;
+
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -27,6 +39,19 @@ export default function ListingDetailPage() {
   const { address } = useAccount();
 
   const { data: listing, isLoading, error } = useListing(listingId);
+
+  // Read buyer's own Karma tier for offer-button gating
+  const { data: contractBuyerTier } = useReadContract({
+    address: KARMA_READER_ADDRESS,
+    abi: karmaReaderAbi,
+    functionName: 'getTier',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && !!KARMA_READER_ADDRESS },
+  });
+  const myTier: KarmaTier =
+    contractBuyerTier !== undefined
+      ? (Number(contractBuyerTier) as KarmaTier)
+      : DEMO_TIER_MAP[address?.toLowerCase() ?? ''] ?? 0;
 
   if (isLoading) {
     return (
@@ -50,7 +75,8 @@ export default function ListingDetailPage() {
   }
 
   const isSeller = address?.toLowerCase() === listing.seller.toLowerCase();
-  const canOffer = !isSeller && !!address;
+  const meetsKarmaTier = myTier >= listing.requiredKarmaTier;
+  const canOffer = !isSeller && !!address && meetsKarmaTier;
 
   return (
     <div className="space-y-6 pb-24">
@@ -83,8 +109,7 @@ export default function ListingDetailPage() {
             <code className="text-xs bg-muted px-2 py-1 rounded">
               {listing.seller.slice(0, 10)}...{listing.seller.slice(-4)}
             </code>
-            {/* In production: read actual tier from KarmaReader */}
-            <KarmaBadge tier={0} />
+            <UserKarma address={listing.seller} />
           </div>
         </CardContent>
       </Card>
@@ -109,7 +134,7 @@ export default function ListingDetailPage() {
       </Card>
 
       {/* Bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3 max-w-screen-md mx-auto">
+      <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <Button variant="outline" onClick={() => router.back()} className="flex-1">
           뒤로
         </Button>
@@ -126,12 +151,20 @@ export default function ListingDetailPage() {
           <Button disabled className="flex-1">
             협상 종료
           </Button>
+        ) : !meetsKarmaTier ? (
+          <div className="flex-1 space-y-1">
+            <Button disabled className="w-full">
+              Tier {listing.requiredKarmaTier} 이상만 오퍼 가능
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              현재 Tier {myTier}입니다. Karma를 쌓아 Tier {listing.requiredKarmaTier}에 도달하면 오퍼할 수 있어요.
+            </p>
+          </div>
         ) : (
           <Button
             asChild
             className="flex-1"
             size="lg"
-            disabled={!canOffer}
           >
             <Link href={`/offers/new/${listing.id}`}>오퍼하기 →</Link>
           </Button>

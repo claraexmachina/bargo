@@ -24,10 +24,83 @@ const MOCK_ENCLAVE_ID: `0x${string}` =
 const MOCK_MODEL_ID = 'mock-tee/no-llm@demo-only';
 const MOCK_WHITELISTED_AT = 1_700_000_000; // arbitrary past timestamp
 
+// Location tokens for condition matching
+const LOCATION_TOKENS = ['강남', '송파', '홍대', '신촌', '이태원'];
+// Weekday tokens (평일-compatible)
+const WEEKDAY_TOKENS = ['평일', '월요일', '화요일', '수요일', '목요일', '금요일'];
+// Weekend tokens (주말-compatible)
+const WEEKEND_TOKENS = ['주말', '토요일', '토요', '일요일', '일요'];
+// Payment tokens
+const PAYMENT_TOKENS = ['현금', '카드', '이체'];
+
+/** Normalize a conditions string: lowercase, whitespace stripped */
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, '');
+}
+
+/**
+ * Returns true if any token from the list appears in the normalized text.
+ */
+function hasAny(text: string, tokens: string[]): boolean {
+  return tokens.some((t) => text.includes(t));
+}
+
+/**
+ * Check whether seller and buyer conditions are compatible.
+ * Empty string on either side means "no preference" on that axis → always compatible.
+ * Returns true if compatible, false if incompatible.
+ */
+function conditionsCompatible(sellerConds: string, buyerConds: string): boolean {
+  if (!sellerConds.trim() || !buyerConds.trim()) return true;
+
+  const s = normalize(sellerConds);
+  const b = normalize(buyerConds);
+
+  // Location axis: if seller mentions any location tokens, buyer must overlap
+  const sellerHasLocation = hasAny(s, LOCATION_TOKENS);
+  const buyerHasLocation = hasAny(b, LOCATION_TOKENS);
+  if (sellerHasLocation && buyerHasLocation) {
+    const overlap = LOCATION_TOKENS.some((t) => s.includes(t) && b.includes(t));
+    if (!overlap) return false;
+  }
+
+  // Time axis: if seller wants weekday only, buyer must not be weekend-only
+  const sellerWantsWeekday = hasAny(s, WEEKDAY_TOKENS);
+  const sellerWantsWeekend = hasAny(s, WEEKEND_TOKENS);
+  const buyerWantsWeekday = hasAny(b, WEEKDAY_TOKENS);
+  const buyerWantsWeekend = hasAny(b, WEEKEND_TOKENS);
+
+  if (sellerWantsWeekday && !sellerWantsWeekend && buyerWantsWeekend && !buyerWantsWeekday) {
+    return false;
+  }
+  if (sellerWantsWeekend && !sellerWantsWeekday && buyerWantsWeekday && !buyerWantsWeekend) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Compute the next Friday at 19:30 KST as an ISO string.
+ * Always returns a future time so demo timestamps stay valid.
+ */
+function nextFriday1930KST(): string {
+  const now = new Date();
+  // Offset to Korea/Seoul (UTC+9)
+  const kstOffset = 9 * 60; // minutes
+  const kstNow = new Date(now.getTime() + (kstOffset - now.getTimezoneOffset()) * 60_000);
+  const dayOfWeek = kstNow.getUTCDay(); // 0=Sun, 5=Fri
+  const daysUntilFriday = ((5 - dayOfWeek + 7) % 7) || 7; // at least 1 day ahead
+  const friday = new Date(kstNow);
+  friday.setUTCDate(kstNow.getUTCDate() + daysUntilFriday);
+  friday.setUTCHours(10, 30, 0, 0); // 19:30 KST = 10:30 UTC
+  return friday.toISOString().replace('Z', '+09:00').replace(/\.\d{3}\+09:00$/, '+09:00');
+}
+
 // Fixed agreed conditions (see PLAN §5.1)
 const FIXED_AGREED_CONDITIONS = {
-  location: 'gangnam',
-  meetTimeIso: '2026-04-20T19:00:00+09:00',
+  location: '강남역 8번출구',
+  get meetTimeIso() { return nextFriday1930KST(); },
   payment: 'cash' as const,
 };
 
@@ -108,10 +181,45 @@ export function createMockTeeClient(
         return { payload: failPayload, result: 'fail', signature, signerAddress };
       }
 
+      // Decrypt seller and buyer conditions (failures are non-fatal — treat as empty)
+      let sellerCondStr = '';
+      let buyerCondStr = '';
+      try {
+        const sellerCondBytes = open({
+          privateKey: mockTeeSk,
+          blob: req.encSellerConditions,
+          aad: buildAadListingOnly(listingId),
+        });
+        sellerCondStr = new TextDecoder().decode(sellerCondBytes);
+      } catch { /* no preference */ }
+      try {
+        const buyerCondBytes = open({
+          privateKey: mockTeeSk,
+          blob: req.encBuyerConditions,
+          aad: buildAad(listingId, offerId),
+        });
+        buyerCondStr = new TextDecoder().decode(buyerCondBytes);
+      } catch { /* no preference */ }
+
       const minSell = BigInt(minSellStr.trim());
       const maxBuy = BigInt(maxBuyStr.trim());
 
       const ts = Math.floor(Date.now() / 1000);
+
+      // Condition check first: if conditions are incompatible, fail regardless of ZOPA
+      if (!conditionsCompatible(sellerCondStr, buyerCondStr)) {
+        const failPayload: TeeFailure = {
+          listingId,
+          offerId,
+          reasonHash: keccak256(toBytes('conditions_incompatible')),
+          modelId: MOCK_MODEL_ID,
+          enclaveId: MOCK_ENCLAVE_ID,
+          ts,
+          nonce,
+        };
+        const signature = await signPayload(failPayload);
+        return { payload: failPayload, result: 'fail', signature, signerAddress };
+      }
 
       if (maxBuy < minSell) {
         const failPayload: TeeFailure = {

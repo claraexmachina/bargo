@@ -9,6 +9,8 @@ interface NegotiationStatusProps {
   status: GetStatusResponse;
   onRetry?: () => void;
   onLockEscrow?: (agreedPrice: string) => void;
+  listingId?: string;
+  previousBid?: string;
 }
 
 function BotVsBotAnimation() {
@@ -20,13 +22,18 @@ function BotVsBotAnimation() {
     >
       {/* Seller bot bubble */}
       <div className="flex flex-col items-center gap-2 animate-bounce-left">
-        <div className="text-3xl" aria-hidden="true">🤖</div>
+        {/* Accent dot — blinks to simulate "sending message" */}
+        <span
+          className="h-2 w-2 rounded-full bg-blue-500 animate-accent-blink-a mb-1"
+          aria-hidden="true"
+        />
+        <div className="text-3xl animate-bot-pulse" aria-hidden="true">🤖</div>
         <div className="rounded-xl bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300 max-w-[80px] text-center">
           판매자봇
         </div>
       </div>
 
-      {/* Spinning dots */}
+      {/* Exchange dots */}
       <div className="flex gap-1" aria-hidden="true">
         <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
         <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
@@ -35,7 +42,12 @@ function BotVsBotAnimation() {
 
       {/* Buyer bot bubble */}
       <div className="flex flex-col items-center gap-2 animate-bounce-right">
-        <div className="text-3xl" aria-hidden="true">🤖</div>
+        {/* Accent dot — offset by 0.6s for alternating effect */}
+        <span
+          className="h-2 w-2 rounded-full bg-purple-500 animate-accent-blink-b mb-1"
+          aria-hidden="true"
+        />
+        <div className="text-3xl animate-bot-pulse" aria-hidden="true">🤖</div>
         <div className="rounded-xl bg-purple-100 dark:bg-purple-900/30 px-3 py-1.5 text-xs text-purple-700 dark:text-purple-300 max-w-[80px] text-center">
           구매자봇
         </div>
@@ -44,7 +56,7 @@ function BotVsBotAnimation() {
   );
 }
 
-export function NegotiationStatus({ status, onRetry, onLockEscrow }: NegotiationStatusProps) {
+export function NegotiationStatus({ status, onRetry, onLockEscrow, listingId, previousBid }: NegotiationStatusProps) {
   const { state, attestation } = status;
 
   if (state === 'queued' || state === 'running') {
@@ -69,7 +81,7 @@ export function NegotiationStatus({ status, onRetry, onLockEscrow }: Negotiation
         </p>
         {onRetry && (
           <Button onClick={onRetry} variant="outline" className="mt-2">
-            다시 시도 (Retry)
+            다시 시도
           </Button>
         )}
       </div>

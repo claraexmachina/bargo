@@ -86,7 +86,7 @@ describe('mock TEE', () => {
     expect(attestation.result).toBe('agreement');
     const payload = attestation.payload as TeeAgreement;
     expect(payload.agreedPrice).toBe(expectedMidpoint);
-    expect(payload.agreedConditions.location).toBe('gangnam');
+    expect(payload.agreedConditions.location).toBe('강남역 8번출구');
     expect(payload.agreedConditions.payment).toBe('cash');
 
     // Verify signature: recover signer from EIP-191 sig over canonical JSON
@@ -136,6 +136,95 @@ describe('mock TEE', () => {
       signature: attestation.signature,
     });
     expect(recovered.toLowerCase()).toBe(attestation.signerAddress.toLowerCase());
+  });
+
+  // PRD §2.12: seller "평일" + buyer "토요일만" → conditions_incompatible (even if ZOPA exists)
+  it('fail when seller wants weekday but buyer wants weekend only → conditions_incompatible', async () => {
+    const client = createMockTeeClient(MOCK_TEE_SK, MOCK_TEE_SIGNER_SK);
+    const pubkey = await getMockPubkey();
+
+    const minSell = 700_000n;
+    const maxBuy = 750_000n; // ZOPA exists: maxBuy > minSell
+
+    const sellerConditions = '강남/송파 직거래만, 평일 19시 이후, 박스 없음';
+    const buyerConditions = '강남 가능, 토요일만';
+
+    const encMinSell = encryptPrice(pubkey, minSell.toString(), buildAadListingOnly());
+    const encMaxBuy = encryptPrice(pubkey, maxBuy.toString(), buildAad());
+    const encSellerConditions = seal({
+      teePubkey: pubkey,
+      plaintext: new TextEncoder().encode(sellerConditions),
+      aad: buildAadListingOnly(),
+    });
+    const encBuyerConditions = seal({
+      teePubkey: pubkey,
+      plaintext: new TextEncoder().encode(buyerConditions),
+      aad: buildAad(),
+    });
+
+    const req: NegotiateRequest = {
+      listingId: LISTING_ID,
+      offerId: OFFER_ID,
+      nonce: NONCE,
+      listingMeta: { title: 'MacBook M1', category: 'electronics' },
+      karmaTiers: { seller: 3, buyer: 1 },
+      encMinSell,
+      encSellerConditions,
+      encMaxBuy,
+      encBuyerConditions,
+    };
+
+    const attestation = await client.negotiate(req);
+
+    expect(attestation.result).toBe('fail');
+    const payload = attestation.payload as TeeFailure;
+    const expectedHash = keccak256(toBytes('conditions_incompatible'));
+    expect(payload.reasonHash).toBe(expectedHash);
+  });
+
+  // PRD §2.12: seller "평일" + buyer "평일 가능, 강남 가능" → agreement at midpoint (725K)
+  it('agreement when seller and buyer conditions are compatible → midpoint price', async () => {
+    const client = createMockTeeClient(MOCK_TEE_SK, MOCK_TEE_SIGNER_SK);
+    const pubkey = await getMockPubkey();
+
+    const minSell = 700_000n;
+    const maxBuy = 750_000n;
+    const expectedMidpoint = ((minSell + maxBuy) / 2n).toString(); // "725000"
+
+    const sellerConditions = '강남/송파 직거래만, 평일 19시 이후, 박스 없음';
+    const buyerConditions = '평일 가능, 강남 가능, 카드/현금 모두 OK';
+
+    const encMinSell = encryptPrice(pubkey, minSell.toString(), buildAadListingOnly());
+    const encMaxBuy = encryptPrice(pubkey, maxBuy.toString(), buildAad());
+    const encSellerConditions = seal({
+      teePubkey: pubkey,
+      plaintext: new TextEncoder().encode(sellerConditions),
+      aad: buildAadListingOnly(),
+    });
+    const encBuyerConditions = seal({
+      teePubkey: pubkey,
+      plaintext: new TextEncoder().encode(buyerConditions),
+      aad: buildAad(),
+    });
+
+    const req: NegotiateRequest = {
+      listingId: LISTING_ID,
+      offerId: OFFER_ID,
+      nonce: NONCE,
+      listingMeta: { title: 'MacBook M1', category: 'electronics' },
+      karmaTiers: { seller: 3, buyer: 1 },
+      encMinSell,
+      encSellerConditions,
+      encMaxBuy,
+      encBuyerConditions,
+    };
+
+    const attestation = await client.negotiate(req);
+
+    expect(attestation.result).toBe('agreement');
+    const payload = attestation.payload as TeeAgreement;
+    expect(payload.agreedPrice).toBe(expectedMidpoint);
+    expect(payload.agreedConditions.location).toBe('강남역 8번출구');
   });
 
   it('health endpoint → ok: true', async () => {
