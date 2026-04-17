@@ -1,6 +1,6 @@
-// ABI stubs — regenerated from `forge build` by contract-lead.
-// Do NOT hand-edit. PR from contracts/ build artifact only.
+// ABI barrel — regenerated from `forge build` by contract-lead.
+// Do NOT hand-edit. Run `forge build` then the ABI export script.
 
-export const haggleEscrowAbi = [] as const;
-export const karmaReaderAbi = [] as const;
-export const rlnVerifierAbi = [] as const;
+export { haggleEscrowAbi } from './HaggleEscrow.js';
+export { karmaReaderAbi } from './KarmaReader.js';
+export { rlnVerifierAbi } from './RLNVerifier.js';
