@@ -6,6 +6,10 @@ const hexPrivKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'must be 0x-prefixed 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
 
+  // Service X25519 private key for decrypting client-sealed reservation blobs.
+  // Clients encrypt to the corresponding public key (fetched from GET /service-pubkey).
+  SERVICE_DECRYPT_SK: hexPrivKey,
+
   // NEAR AI Cloud
   // Empty key is allowed for local dev / CI without a real account; attestation calls will fail.
   // Get a key from https://near.ai/console and add to .env.local as NEAR_AI_API_KEY=<key>.
@@ -54,6 +58,8 @@ if (!env.NEAR_AI_API_KEY) {
 
 export const config = {
   port: env.PORT,
+
+  serviceDecryptSk: env.SERVICE_DECRYPT_SK as `0x${string}`,
 
   nearAi: {
     apiKey: env.NEAR_AI_API_KEY,

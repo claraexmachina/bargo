@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { KarmaTier } from '@bargo/shared';
+import type { EncryptedBlob, KarmaTier } from '@bargo/shared';
 import cors from '@fastify/cors';
 import Database from 'better-sqlite3';
 import Fastify from 'fastify';
@@ -27,7 +27,7 @@ vi.mock('../src/negotiate/engine.js', () => ({
         meetTimeIso: '2026-04-20T19:00:00+09:00',
         payment: 'cash',
       },
-      agreedConditionsHash: `0x${'dd'.repeat(32)}`, // distinct from nearAiAttestationHash
+      agreedConditionsHash: `0x${'dd'.repeat(32)}`,
       modelId: 'qwen3-30b',
       completionId: 'chatcmpl-test',
       nonce: `0x${'aa'.repeat(32)}`,
@@ -119,6 +119,20 @@ function makeChainDeps(overrides?: {
 const SELLER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as const;
 const BUYER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
 const RELAYER_PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
+// Demo service decrypt SK (matches SERVICE_DECRYPT_SK in .env.example)
+const SERVICE_DECRYPT_SK = `0x${'00'.repeat(31)}42` as const;
+// Corresponding pubkey is derived from above SK — for test purposes any valid hex
+const SERVICE_PUBKEY = `0x${'ab'.repeat(32)}` as const;
+
+// Minimal EncryptedBlob fixture — shape validated by Zod at the API boundary
+function makeBlob(tag: string): EncryptedBlob {
+  return {
+    v: 1,
+    ephPub: `0x${'a0'.repeat(32)}` as `0x${string}`,
+    nonce: `0x${'b0'.repeat(24)}` as `0x${string}`,
+    ct: `0x${tag.repeat(4)}` as `0x${string}`,
+  };
+}
 
 async function buildApp(
   db: Database.Database,
@@ -138,6 +152,8 @@ async function buildApp(
     relayerPrivateKey: RELAYER_PK,
     bargoEscrowAddress: '0x0000000000000000000000000000000000000002',
     attestationDir: '/tmp/test-attestations',
+    serviceDecryptSk: SERVICE_DECRYPT_SK,
+    servicePubkey: SERVICE_PUBKEY,
   });
   return app;
 }
@@ -150,7 +166,6 @@ function makeValidListing(overrides?: { listingId?: string }) {
   return {
     listingId: overrides?.listingId ?? LISTING_ID,
     seller: SELLER,
-    askPrice: '1000000',
     requiredKarmaTier: 0,
     itemMeta: {
       title: 'MacBook M1',
@@ -158,8 +173,8 @@ function makeValidListing(overrides?: { listingId?: string }) {
       category: 'electronics',
       images: [],
     },
-    plaintextMinSell: '800000',
-    plaintextSellerConditions: '강남, 주말 오후',
+    encMinSell: makeBlob('11'),
+    encSellerConditions: makeBlob('22'),
     onchainTxHash: ONCHAIN_TX_HASH,
   };
 }
@@ -169,9 +184,8 @@ function makeValidOffer(listingId: string, nullifier?: string, offerId?: string)
     offerId: offerId ?? OFFER_ID,
     buyer: BUYER,
     listingId,
-    bidPrice: '900000',
-    plaintextMaxBuy: '950000',
-    plaintextBuyerConditions: 'gangnam, weekends',
+    encMaxBuy: makeBlob('33'),
+    encBuyerConditions: makeBlob('44'),
     rlnProof: {
       epoch: 1,
       proof: `0x${'aa'.repeat(32)}`,
@@ -182,6 +196,31 @@ function makeValidOffer(listingId: string, nullifier?: string, offerId?: string)
     onchainTxHash: ONCHAIN_TX_HASH,
   };
 }
+
+// --- Test: GET /service-pubkey ---
+
+describe('GET /service-pubkey', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = buildDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
+
+  it('returns pubkey and issuedAt', async () => {
+    const app = await buildApp(db);
+
+    const res = await app.inject({ method: 'GET', url: '/service-pubkey' });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ pubkey: string; issuedAt: number }>();
+    expect(body.pubkey).toBe(SERVICE_PUBKEY);
+    expect(body.issuedAt).toBeGreaterThan(0);
+    expect(res.headers['cache-control']).toBe('public, max-age=300');
+  });
+});
 
 // --- Test: POST /listing ---
 
@@ -209,16 +248,20 @@ describe('POST /listing', () => {
     expect(body.listingId).toBe(LISTING_ID);
     expect(body.onchainTxHash).toBe(ONCHAIN_TX_HASH);
 
-    // Verify DB row exists
+    // Verify DB row exists and stores enc blobs (no plaintext)
     const row = db
       .prepare('SELECT * FROM listings WHERE id = ?')
-      .get(Buffer.from(body.listingId.slice(2), 'hex'));
+      .get(Buffer.from(body.listingId.slice(2), 'hex')) as Record<string, unknown> | undefined;
     expect(row).toBeTruthy();
+    expect(row).not.toHaveProperty('plaintext_min_sell');
+    expect(row).not.toHaveProperty('plaintext_seller_conditions');
+    expect(typeof row?.enc_min_sell_json).toBe('string');
+    expect(typeof row?.enc_seller_conditions_json).toBe('string');
   });
 
-  it('missing plaintextMinSell → 400', async () => {
+  it('missing encMinSell → 400', async () => {
     const app = await buildApp(db);
-    const payload = { ...makeValidListing(), plaintextMinSell: undefined };
+    const payload = { ...makeValidListing(), encMinSell: undefined };
 
     const res = await app.inject({
       method: 'POST',
@@ -231,13 +274,13 @@ describe('POST /listing', () => {
     expect(body.error.code).toBe('bad-request');
   });
 
-  it('non-decimal plaintextMinSell → 400', async () => {
+  it('missing encSellerConditions → 400', async () => {
     const app = await buildApp(db);
 
     const res = await app.inject({
       method: 'POST',
       url: '/listing',
-      payload: { ...makeValidListing(), plaintextMinSell: 'not-a-number' },
+      payload: { ...makeValidListing(), encSellerConditions: undefined },
     });
 
     expect(res.statusCode).toBe(400);
@@ -248,7 +291,6 @@ describe('POST /listing', () => {
 
 describe('POST /offer', () => {
   let db: Database.Database;
-  // listingId is always LISTING_ID (the on-chain id passed in makeValidListing)
   const listingId = LISTING_ID;
 
   beforeEach(async () => {
@@ -327,9 +369,9 @@ describe('POST /offer', () => {
     expect(res.json<{ error: { code: string } }>().error.code).toBe('throughput-exceeded');
   });
 
-  it('missing plaintextMaxBuy → 400', async () => {
+  it('missing encMaxBuy → 400', async () => {
     const app = await buildApp(db);
-    const payload = { ...makeValidOffer(listingId), plaintextMaxBuy: undefined };
+    const payload = { ...makeValidOffer(listingId), encMaxBuy: undefined };
 
     const res = await app.inject({
       method: 'POST',

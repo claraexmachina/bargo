@@ -6,10 +6,11 @@ import { UserKarma } from '@/components/UserKarma';
 import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useListing, usePostOffer } from '@/lib/api';
-import { formatKRW, krwToWei } from '@/lib/format';
+import { useListing, usePostOffer, useServicePubkey } from '@/lib/api';
+import { krwToWei } from '@/lib/format';
 import { lineaEstimateGas } from '@/lib/linea-estimate';
 import { buildRLNProof } from '@/lib/rln';
+import { sealConditions, sealReservationPrice } from '@/lib/seal';
 import type { Hex, ListingId } from '@bargo/shared';
 import { ADDRESSES, bargoEscrowAbi } from '@bargo/shared';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -31,10 +32,8 @@ export default function NewOfferPage() {
 
   const { data: listing } = useListing(listingId);
   const postOffer = usePostOffer();
+  const { data: servicePubkey } = useServicePubkey();
 
-  // Pre-fill bid from query param when retrying after a failed negotiation
-  const initialBid = searchParams.get('bid') ?? '';
-  const [bidPriceKrw, setBidPriceKrw] = React.useState(initialBid);
   const [maxPriceKrw, setMaxPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -43,7 +42,7 @@ export default function NewOfferPage() {
   const escrowAddress = ADDRESSES[HOODI_CHAIN_ID]?.bargoEscrow;
 
   const canSubmit =
-    isConnected && !!address && bidPriceKrw.length > 0 && maxPriceKrw.length > 0 && !isSubmitting;
+    isConnected && !!address && maxPriceKrw.length > 0 && !isSubmitting && !!servicePubkey;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,14 +59,20 @@ export default function NewOfferPage() {
     setConditions('');
 
     try {
-      const bidPriceWei = krwToWei(bidPriceKrw);
-      const bidPriceBigInt = BigInt(bidPriceWei);
       const maxPriceWei = krwToWei(rawMax);
+      const maxPriceBigInt = BigInt(maxPriceWei);
 
-      // Build RLN proof (unchanged from V1)
+      if (!servicePubkey?.pubkey) {
+        throw new Error(
+          'Service pubkey not available. Make sure the negotiation service is running.',
+        );
+      }
+
+      // Build RLN proof — signal is keyed to (listingId, ceiling, epoch). The
+      // ceiling never leaves the client in plaintext; only its ZK signal does.
       const rlnProof = buildRLNProof({
         listingId,
-        bidPriceWei: bidPriceBigInt,
+        bidPriceWei: maxPriceBigInt,
         walletAddress: address,
       });
 
@@ -75,10 +80,10 @@ export default function NewOfferPage() {
         throw new Error('Contract address not configured. Check docs/deployments.md.');
       }
 
-      // Step 1: On-chain submitOffer with Status Network gasless-ready gas fields.
+      // Step 1: On-chain submitOffer (V3 sealed-bid — no bidPrice arg).
       toast.info('Approve the transaction in your wallet...');
       const rlnProofBytes = rlnProof.proof as Hex;
-      const callArgs = [listingId, bidPriceBigInt, rlnProofBytes] as const;
+      const callArgs = [listingId, rlnProofBytes] as const;
       const data = encodeFunctionData({
         abi: bargoEscrowAbi,
         functionName: 'submitOffer',
@@ -119,21 +124,31 @@ export default function NewOfferPage() {
       const offerId = (firstLog.args as { offerId: Hex }).offerId;
       toast.success('Offer registered on-chain!');
 
-      // Step 3: POST to negotiation service
+      // Step 3: Seal ceiling + conditions to service pubkey, then POST
       setSubmitStep('service');
+      const encMaxBuy = sealReservationPrice({
+        servicePubkey: servicePubkey.pubkey,
+        listingId,
+        reservationWei: maxPriceWei,
+      });
+      const encBuyerConditions = sealConditions({
+        servicePubkey: servicePubkey.pubkey,
+        listingId,
+        conditions: rawCond.trim().slice(0, 2048),
+      });
+
       const result = await postOffer.mutateAsync({
         offerId,
         buyer: address,
         listingId,
-        bidPrice: bidPriceWei,
-        plaintextMaxBuy: maxPriceWei,
-        plaintextBuyerConditions: rawCond.trim().slice(0, 2048),
+        encMaxBuy,
+        encBuyerConditions,
         rlnProof,
         onchainTxHash: txHash,
       });
 
       toast.success('Offer submitted! Starting negotiation...');
-      router.push(`/deals/${result.negotiationId}?listingId=${listingId}&bid=${bidPriceKrw}`);
+      router.push(`/deals/${result.negotiationId}?listingId=${listingId}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       if (process.env.NODE_ENV === 'development') {
@@ -179,7 +194,7 @@ export default function NewOfferPage() {
           <h1 className="text-2xl font-bold">Submit offer</h1>
           {listing && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              {listing.itemMeta.title} — asking {formatKRW(listing.askPrice)}
+              {listing.itemMeta.title} — sealed bid
             </p>
           )}
           {address && (
@@ -206,28 +221,12 @@ export default function NewOfferPage() {
         {/* Bid price */}
         <Card>
           <CardHeader>
-            <CardTitle>Bid price</CardTitle>
+            <CardTitle>Your ceiling — sealed</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <label htmlFor="bid-price" className="text-sm font-medium">
-                Bid price (public){' '}
-                <span className="text-destructive" aria-hidden="true">
-                  *
-                </span>
-              </label>
-              <PriceInput
-                id="bid-price"
-                value={bidPriceKrw}
-                onChange={setBidPriceKrw}
-                placeholder="720,000"
-                label="Bid price (KRW)"
-              />
-            </div>
-
-            <div className="space-y-1">
               <label htmlFor="max-price" className="text-sm font-medium">
-                Ceiling price — reservation price (private){' '}
+                Maximum you'd pay{' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -236,13 +235,14 @@ export default function NewOfferPage() {
                 id="max-price"
                 value={maxPriceKrw}
                 onChange={setMaxPriceKrw}
-                placeholder="750,000"
+                placeholder="e.g. 750,000"
                 masked
                 label="Maximum buy price (KRW)"
               />
               <p className="text-sm text-muted-foreground">
-                Processed inside <strong>NEAR AI TEE</strong>. Counterparty never sees it. Operator
-                sees plaintext for ~15s during negotiation; auto-purged on deal completion.
+                Sealed with the service's X25519 pubkey before leaving your browser. Decrypted only
+                inside <strong>NEAR AI TEE</strong>. The counterparty never sees it; the only price
+                ever revealed is the final agreed settlement.
               </p>
             </div>
           </CardContent>

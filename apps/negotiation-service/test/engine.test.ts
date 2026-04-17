@@ -1,6 +1,6 @@
-// Engine unit tests — mocks parseConditionsPair and fetchAttestation.
+// Engine unit tests — mocks parseConditionsPair, fetchAttestation, and decryptReservationEphemeral.
 
-import type { ConditionStruct } from '@bargo/shared';
+import type { ConditionStruct, EncryptedBlob } from '@bargo/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- Mocks ---
@@ -25,27 +25,52 @@ vi.mock('../src/nearai/attestation.js', () => ({
   runStartupAttestationCheck: vi.fn(),
 }));
 
+// Mock ephemeral decrypt so engine tests don't need real crypto
+vi.mock('../src/crypto/decryptEphemeral.js', () => ({
+  decryptReservationEphemeral: vi.fn().mockReturnValue({
+    minSellWei: 800000n,
+    maxBuyWei: 950000n,
+    sellerConditions: '강남, 주말',
+    buyerConditions: 'gangnam, weekends',
+  }),
+}));
+
+import * as decryptMock from '../src/crypto/decryptEphemeral.js';
 import * as nearAiAttestationMock from '../src/nearai/attestation.js';
 import { LLMTimeoutError } from '../src/nearai/client.js';
 import * as nearAiClientMock from '../src/nearai/client.js';
 import { runNegotiation } from '../src/negotiate/engine.js';
 
-// Typed mock helpers — extracted after imports
+// Typed mock helpers
 const mockParseConditionsPair = nearAiClientMock.parseConditionsPair as ReturnType<typeof vi.fn>;
 const mockFetchAttestation = nearAiAttestationMock.fetchAttestation as ReturnType<typeof vi.fn>;
 const mockSaveAttestationBundle = nearAiAttestationMock.saveAttestationBundle as ReturnType<
   typeof vi.fn
 >;
+const mockDecryptReservationEphemeral = decryptMock.decryptReservationEphemeral as ReturnType<
+  typeof vi.fn
+>;
+
+// Minimal EncryptedBlob fixture
+function makeBlob(tag: string): EncryptedBlob {
+  return {
+    v: 1,
+    ephPub: `0x${'a0'.repeat(32)}` as `0x${string}`,
+    nonce: `0x${'b0'.repeat(24)}` as `0x${string}`,
+    ct: `0x${tag.repeat(4)}` as `0x${string}`,
+  };
+}
 
 const BASE_OPTS = {
   dealId: `0x${'00'.repeat(32)}` as `0x${string}`,
   listingId: `0x${'01'.repeat(32)}` as `0x${string}`,
   offerId: `0x${'02'.repeat(32)}` as `0x${string}`,
   listingTitle: 'Test Item',
-  sellerPlaintextMin: '800000',
-  sellerPlaintextConditions: '강남, 주말',
-  buyerPlaintextMax: '950000',
-  buyerPlaintextConditions: 'gangnam, weekends',
+  encMinSell: makeBlob('11'),
+  encSellerConditions: makeBlob('22'),
+  encMaxBuy: makeBlob('33'),
+  encBuyerConditions: makeBlob('44'),
+  serviceDecryptSk: `0x${'42'.repeat(32)}` as `0x${string}`,
   sellerKarmaTier: 1 as const,
   buyerKarmaTier: 1 as const,
   nearAiApiKey: 'test-key',
@@ -99,6 +124,13 @@ describe('runNegotiation — happy path', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHappyPath();
+    // Restore default decrypt mock after clearAllMocks
+    mockDecryptReservationEphemeral.mockReturnValue({
+      minSellWei: 800000n,
+      maxBuyWei: 950000n,
+      sellerConditions: '강남, 주말',
+      buyerConditions: 'gangnam, weekends',
+    });
   });
 
   it('returns agreement with attestation', async () => {
@@ -117,7 +149,6 @@ describe('runNegotiation — happy path', () => {
     expect(result.attestation.agreedConditionsHash).not.toBe(
       result.attestation.nearAiAttestationHash,
     );
-    // attestationBundlePath is now returned from engine
     expect(result.attestationBundlePath).toBe('/tmp/test.json');
     // agreedPrice within ZOPA: 800000..950000
     const price = BigInt(result.attestation.agreedPrice);
@@ -133,6 +164,18 @@ describe('runNegotiation — happy path', () => {
       MOCK_BUNDLE,
     );
   });
+
+  it('decryptReservationEphemeral is called with enc blobs and listingId', async () => {
+    await runNegotiation(BASE_OPTS);
+    expect(mockDecryptReservationEphemeral).toHaveBeenCalledWith({
+      serviceDecryptSk: BASE_OPTS.serviceDecryptSk,
+      listingId: BASE_OPTS.listingId,
+      encMinSell: BASE_OPTS.encMinSell,
+      encSellerConditions: BASE_OPTS.encSellerConditions,
+      encMaxBuy: BASE_OPTS.encMaxBuy,
+      encBuyerConditions: BASE_OPTS.encBuyerConditions,
+    });
+  });
 });
 
 describe('runNegotiation — no_price_zopa', () => {
@@ -141,11 +184,14 @@ describe('runNegotiation — no_price_zopa', () => {
   });
 
   it('returns fail when buyerMax < sellerMin', async () => {
-    const result = await runNegotiation({
-      ...BASE_OPTS,
-      sellerPlaintextMin: '1000000',
-      buyerPlaintextMax: '500000',
+    mockDecryptReservationEphemeral.mockReturnValue({
+      minSellWei: 1000000n,
+      maxBuyWei: 500000n,
+      sellerConditions: '강남',
+      buyerConditions: 'gangnam',
     });
+
+    const result = await runNegotiation(BASE_OPTS);
 
     expect(result.kind).toBe('fail');
     if (result.kind !== 'fail') return;
@@ -157,6 +203,12 @@ describe('runNegotiation — no_price_zopa', () => {
 describe('runNegotiation — conditions_incompatible', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDecryptReservationEphemeral.mockReturnValue({
+      minSellWei: 800000n,
+      maxBuyWei: 950000n,
+      sellerConditions: '홍대',
+      buyerConditions: 'gangnam',
+    });
     mockParseConditionsPair.mockResolvedValue({
       seller: {
         ...SELLER_CONDITIONS,
@@ -182,6 +234,12 @@ describe('runNegotiation — conditions_incompatible', () => {
 describe('runNegotiation — llm_timeout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDecryptReservationEphemeral.mockReturnValue({
+      minSellWei: 800000n,
+      maxBuyWei: 950000n,
+      sellerConditions: '강남',
+      buyerConditions: 'gangnam',
+    });
     mockParseConditionsPair.mockRejectedValue(new LLMTimeoutError('timed out'));
   });
 

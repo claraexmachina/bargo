@@ -21,7 +21,7 @@ describe('seal / open roundtrip', () => {
     const plaintext = new TextEncoder().encode('strictly private');
 
     const blob = seal({ recipientPubkey: pubkey, plaintext, aad });
-    const tampered = { ...blob, ct: (`${blob.ct.slice(0, -2)}ff`) as `0x${string}` };
+    const tampered = { ...blob, ct: `${blob.ct.slice(0, -2)}ff` as `0x${string}` };
 
     expect(() => open({ recipientPrivkey: privkey, blob: tampered, aad })).toThrow();
   });

@@ -6,9 +6,10 @@ import { WalletConnect } from '@/components/WalletConnect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { usePostListing } from '@/lib/api';
+import { usePostListing, useServicePubkey } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
 import { lineaEstimateGas } from '@/lib/linea-estimate';
+import { sealConditions, sealReservationPrice } from '@/lib/seal';
 import type { Hex, KarmaTier } from '@bargo/shared';
 import { ADDRESSES, bargoEscrowAbi } from '@bargo/shared';
 import { useRouter } from 'next/navigation';
@@ -40,11 +41,11 @@ export default function NewListingPage() {
   const postListing = usePostListing();
   const { writeContractAsync } = useWriteContract();
 
+  const { data: servicePubkey } = useServicePubkey();
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [category, setCategory] =
     React.useState<(typeof CATEGORIES)[number]['value']>('electronics');
-  const [askPriceKrw, setAskPriceKrw] = React.useState('');
   const [minPriceKrw, setMinPriceKrw] = React.useState('');
   const [conditions, setConditions] = React.useState('');
   const [requiredTier, setRequiredTier] = React.useState<KarmaTier>(0);
@@ -57,9 +58,9 @@ export default function NewListingPage() {
     isConnected &&
     !!address &&
     title.trim().length > 0 &&
-    askPriceKrw.length > 0 &&
     minPriceKrw.length > 0 &&
-    !isSubmitting;
+    !isSubmitting &&
+    !!servicePubkey;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,8 +77,13 @@ export default function NewListingPage() {
     setConditions('');
 
     try {
-      const askPriceWei = krwToWei(askPriceKrw);
       const minPriceWei = krwToWei(rawMin);
+
+      if (!servicePubkey?.pubkey) {
+        throw new Error(
+          'Service pubkey not available. Make sure the negotiation service is running.',
+        );
+      }
 
       const itemMeta = {
         title: title.trim(),
@@ -93,9 +99,9 @@ export default function NewListingPage() {
         throw new Error('Contract address not configured. Check docs/deployments.md.');
       }
 
-      // Step 1: On-chain registerListing with Status Network gasless-ready gas fields.
+      // Step 1: On-chain registerListing (V3 sealed-bid — no askPrice arg).
       toast.info('Approve the transaction in your wallet...');
-      const callArgs = [BigInt(askPriceWei), requiredTier, itemMetaHash] as const;
+      const callArgs = [requiredTier, itemMetaHash] as const;
       const data = encodeFunctionData({
         abi: bargoEscrowAbi,
         functionName: 'registerListing',
@@ -136,16 +142,26 @@ export default function NewListingPage() {
       const listingId = (firstLog.args as { listingId: Hex }).listingId;
       toast.success('On-chain registration confirmed!');
 
-      // Step 3: POST to negotiation service
+      // Step 3: Seal reservation + conditions, then POST
       setSubmitStep('service');
+      const encMinSell = sealReservationPrice({
+        servicePubkey: servicePubkey.pubkey,
+        listingId,
+        reservationWei: minPriceWei,
+      });
+      const encSellerConditions = sealConditions({
+        servicePubkey: servicePubkey.pubkey,
+        listingId,
+        conditions: rawCond.trim().slice(0, 2048),
+      });
+
       const result = await postListing.mutateAsync({
         listingId,
         seller: address,
-        askPrice: askPriceWei,
         requiredKarmaTier: requiredTier,
         itemMeta,
-        plaintextMinSell: minPriceWei,
-        plaintextSellerConditions: rawCond.trim().slice(0, 2048),
+        encMinSell,
+        encSellerConditions,
         onchainTxHash: txHash,
       });
 
@@ -260,28 +276,12 @@ export default function NewListingPage() {
         {/* Pricing */}
         <Card>
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
+            <CardTitle>Your floor — sealed</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <label htmlFor="ask-price" className="text-sm font-medium">
-                Ask price (public){' '}
-                <span className="text-destructive" aria-hidden="true">
-                  *
-                </span>
-              </label>
-              <PriceInput
-                id="ask-price"
-                value={askPriceKrw}
-                onChange={setAskPriceKrw}
-                placeholder="800,000"
-                label="Asking price (KRW)"
-              />
-            </div>
-
-            <div className="space-y-1">
               <label htmlFor="min-price" className="text-sm font-medium">
-                Floor price — reservation price (private){' '}
+                Lowest you'd accept{' '}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>

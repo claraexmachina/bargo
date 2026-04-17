@@ -1,6 +1,5 @@
 import { KarmaBadge } from '@/components/KarmaBadge';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { formatKRW } from '@/lib/format';
 import type { KarmaTier, ListingPublic } from '@bargo/shared';
 import Link from 'next/link';
 
@@ -34,16 +33,19 @@ export function ListingCard({ listing }: ListingCardProps) {
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-semibold line-clamp-2">{listing.itemMeta.title}</h3>
           </div>
-          <p className="text-xl font-bold text-primary">{formatKRW(listing.askPrice)}</p>
+          <div
+            data-testid="sealed-bid-badge"
+            className="inline-flex items-center rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary"
+          >
+            Sealed-bid · Tier {listing.requiredKarmaTier}+ (
+            {TIER_REQUIRED_LABEL[listing.requiredKarmaTier]})
+          </div>
           <p className="text-sm text-muted-foreground line-clamp-2">
             {listing.itemMeta.description}
           </p>
         </CardContent>
         <CardFooter className="flex items-center justify-between pt-0">
-          <KarmaBadge tier={listing.seller.slice(0, 2) === '0x' ? 0 : 0} showLabel={false} />
-          <span className="text-xs text-muted-foreground">
-            Required tier: {TIER_REQUIRED_LABEL[listing.requiredKarmaTier]}
-          </span>
+          <KarmaBadge tier={0} showLabel={false} />
         </CardFooter>
       </Card>
     </Link>

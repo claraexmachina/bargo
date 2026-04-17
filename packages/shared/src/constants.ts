@@ -11,9 +11,6 @@ export const KARMA_THRESHOLDS_WEI = {
 // --- Concurrent negotiation throughput limits, indexed by tier (0..3) ---
 export const THROUGHPUT_LIMITS = [3, 10, 20, 2 ** 31 - 1] as const;
 
-// --- High-value listing threshold (500k wei equiv in demo token) ---
-export const HIGH_VALUE_THRESHOLD_WEI = 500_000n * 10n ** 18n;
-
 // --- RLN ---
 // Epoch duration in seconds (resolved: 300s per team decision)
 export const RLN_EPOCH_DURATION = 300 as const;

@@ -14,7 +14,7 @@ export function hexToBytes(hex: Hex): Uint8Array {
   const raw = hex.slice(2);
   const bytes = new Uint8Array(raw.length / 2);
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(raw.slice(i * 2, i * 2 + 2), 16);
+    bytes[i] = Number.parseInt(raw.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
 }

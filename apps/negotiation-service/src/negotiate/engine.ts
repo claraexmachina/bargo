@@ -1,10 +1,13 @@
-// Negotiation engine — orchestrates PLAN_V2 §2.2 steps A→J.
+// Negotiation engine — orchestrates PLAN_V3 §2.2 steps A→J.
 // Pure async function; no side effects except DB writes + disk writes.
+// Plaintext reservation values are decrypted ephemerally — never logged, never returned.
 
 import type {
   AgreedConditions,
   DealId,
+  EncryptedBlob,
   FailureReason,
+  Hex,
   KarmaTier,
   ListingId,
   NearAiAttestation,
@@ -15,6 +18,7 @@ import type {
 import canonicalize from 'canonicalize';
 import { toBytes } from 'viem';
 import { keccak256 } from 'viem';
+import { decryptReservationEphemeral } from '../crypto/decryptEphemeral.js';
 import { fetchAttestation, saveAttestationBundle } from '../nearai/attestation.js';
 import { LLMTimeoutError, parseConditionsPair } from '../nearai/client.js';
 import { matchConditions } from './conditions.js';
@@ -25,12 +29,13 @@ export interface RunNegotiationOpts {
   listingId: ListingId;
   offerId: OfferId;
   listingTitle: string;
-  sellerPlaintextMin: string; // wei decimal
-  sellerPlaintextConditions: string;
-  buyerPlaintextMax: string; // wei decimal
-  buyerPlaintextConditions: string;
+  encMinSell: EncryptedBlob;
+  encSellerConditions: EncryptedBlob;
+  encMaxBuy: EncryptedBlob;
+  encBuyerConditions: EncryptedBlob;
   sellerKarmaTier: KarmaTier;
   buyerKarmaTier: KarmaTier;
+  serviceDecryptSk: Hex;
   // Config injected by caller (avoids circular import of config.ts)
   nearAiApiKey: string;
   nearAiBaseURL: string;
@@ -53,15 +58,27 @@ export type NegotiationResult =
     };
 
 export async function runNegotiation(opts: RunNegotiationOpts): Promise<NegotiationResult> {
-  // A. ZOPA check
-  const sellerMin = BigInt(opts.sellerPlaintextMin);
-  const buyerMax = BigInt(opts.buyerPlaintextMax);
+  // A. Ephemeral decrypt — plaintext lives only in this scope, never logged.
+  const {
+    minSellWei,
+    maxBuyWei,
+    sellerConditions: sellerConditionsText,
+    buyerConditions: buyerConditionsText,
+  } = decryptReservationEphemeral({
+    serviceDecryptSk: opts.serviceDecryptSk,
+    listingId: opts.listingId,
+    encMinSell: opts.encMinSell,
+    encSellerConditions: opts.encSellerConditions,
+    encMaxBuy: opts.encMaxBuy,
+    encBuyerConditions: opts.encBuyerConditions,
+  });
 
-  if (buyerMax < sellerMin) {
+  // B. ZOPA check
+  if (maxBuyWei < minSellWei) {
     return { kind: 'fail', reason: 'no_price_zopa' };
   }
 
-  // B+C. Call NEAR AI to parse conditions
+  // C+D. Call NEAR AI to parse conditions (only external call with plaintext)
   let completionId: string;
   let sellerConditions: import('@bargo/shared').ConditionStruct;
   let buyerConditions: import('@bargo/shared').ConditionStruct;
@@ -69,8 +86,8 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
   try {
     const parsed = await parseConditionsPair({
       listingTitle: opts.listingTitle,
-      sellerText: opts.sellerPlaintextConditions,
-      buyerText: opts.buyerPlaintextConditions,
+      sellerText: sellerConditionsText,
+      buyerText: buyerConditionsText,
       apiKey: opts.nearAiApiKey,
       baseURL: opts.nearAiBaseURL,
       model: opts.nearAiModel,
@@ -86,7 +103,7 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
     throw err;
   }
 
-  // D. Match conditions
+  // E. Match conditions
   const matchResult = matchConditions(sellerConditions, buyerConditions);
   if (!matchResult.compatible) {
     return { kind: 'fail', reason: 'conditions_incompatible' };
@@ -94,15 +111,15 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
 
   const agreedConditions = matchResult.agreed;
 
-  // E. Compute karma-weighted price
+  // F. Compute karma-weighted price
   const agreedPriceWei = computeAgreedPrice(
-    sellerMin,
-    buyerMax,
+    minSellWei,
+    maxBuyWei,
     opts.sellerKarmaTier,
     opts.buyerKarmaTier,
   );
 
-  // F. Fetch NEAR AI attestation
+  // G. Fetch NEAR AI attestation
   const { bundle, bundleHash, nonce } = await fetchAttestation({
     model: opts.nearAiModel,
     dealId: opts.dealId,
@@ -111,18 +128,16 @@ export async function runNegotiation(opts: RunNegotiationOpts): Promise<Negotiat
     baseURL: opts.nearAiBaseURL,
   });
 
-  // G. Compute agreedConditionsHash = keccak256(canonicalize(AgreedConditions)).
-  // Canonicalized JSON (RFC 8785) avoids length-ambiguity of encodePacked on strings
-  // and produces a hash verifiable by any standard JSON canonicalizer.
+  // H. Compute agreedConditionsHash = keccak256(canonicalize(AgreedConditions)).
   const agreedConditionsForHash: AgreedConditions = agreedConditions;
   const canonicalConditions = canonicalize(agreedConditionsForHash) as string | undefined;
   if (!canonicalConditions) throw new Error('canonicalize returned undefined for agreedConditions');
   const agreedConditionsHash = keccak256(toBytes(canonicalConditions)) as `0x${string}`;
 
-  // H. Persist attestation bundle to disk
+  // I. Persist attestation bundle to disk
   const attestationBundlePath = saveAttestationBundle(opts.attestationDir, opts.dealId, bundle);
 
-  // I. Build NearAiAttestation — include agreedConditionsHash as a distinct field
+  // J. Build NearAiAttestation — agreedPrice is the only price ever revealed in logs/responses
   const attestation: NearAiAttestation = {
     dealId: opts.dealId,
     listingId: opts.listingId,

@@ -29,10 +29,9 @@ const DEMO_LISTINGS: ListingPublic[] = [
   {
     id: '0x1111111111111111111111111111111111111111111111111111111111111111',
     seller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-    askPrice: (800_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 1,
     itemMeta: {
-      title: '맥북 M1 Pro 14인치 (2021)',
+      title: 'MacBook M1 Pro 14" (2021)',
       description:
         'Excellent condition. Box, charger, and warranty included. Prefer in-person meetup Gangnam/Songpa.',
       category: 'electronics',
@@ -44,7 +43,6 @@ const DEMO_LISTINGS: ListingPublic[] = [
   {
     id: '0x2222222222222222222222222222222222222222222222222222222222222222',
     seller: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-    askPrice: (150_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 0,
     itemMeta: {
       title: 'Nike Air Max 270 (270mm)',
@@ -58,7 +56,6 @@ const DEMO_LISTINGS: ListingPublic[] = [
   {
     id: '0x3333333333333333333333333333333333333333333333333333333333333333',
     seller: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-    askPrice: (600_000n * 10n ** 18n).toString(),
     requiredKarmaTier: 2,
     itemMeta: {
       title: 'Dyson V15 Cordless Vacuum',

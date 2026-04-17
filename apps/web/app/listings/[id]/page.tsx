@@ -97,8 +97,10 @@ export default function ListingDetailPage() {
         </Badge>
       </div>
 
-      {/* Price */}
-      <p className="text-3xl font-bold text-primary">{formatKRW(listing.askPrice)}</p>
+      {/* Sealed-bid notice (no public price) */}
+      <div className="inline-flex items-center rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary">
+        Sealed bid · no public price · the only price ever revealed is the agreed settlement
+      </div>
 
       {/* Seller info */}
       <Card>
