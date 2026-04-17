@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
-import { keccak256, toHex, parseEventLogs } from 'viem';
+import { keccak256, toHex, parseEventLogs, encodeFunctionData } from 'viem';
 import { toast } from 'sonner';
 import { WalletConnect } from '@/components/WalletConnect';
 import { ConditionInput } from '@/components/ConditionInput';
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePostListing } from '@/lib/api';
 import { krwToWei } from '@/lib/format';
+import { lineaEstimateGas } from '@/lib/linea-estimate';
 import type { KarmaTier, Hex } from '@bargo/shared';
 import { bargoEscrowAbi, ADDRESSES } from '@bargo/shared';
 
@@ -91,13 +92,28 @@ export default function NewListingPage() {
         throw new Error('컨트랙트 주소가 설정되지 않았습니다. docs/deployments.md를 확인하세요.');
       }
 
-      // Step 1: On-chain registerListing
+      // Step 1: On-chain registerListing with Status Network gasless-ready gas fields.
       toast.info('지갑에서 트랜잭션을 승인하세요...');
+      const callArgs = [BigInt(askPriceWei), requiredTier, itemMetaHash] as const;
+      const data = encodeFunctionData({
+        abi: bargoEscrowAbi,
+        functionName: 'registerListing',
+        args: callArgs,
+      });
+      const gasFields = await lineaEstimateGas(publicClient!, {
+        from: address,
+        to: escrowAddress,
+        data,
+      });
+
       const txHash = await writeContractAsync({
         address: escrowAddress,
         abi: bargoEscrowAbi,
         functionName: 'registerListing',
-        args: [BigInt(askPriceWei), requiredTier, itemMetaHash],
+        args: callArgs,
+        gas: gasFields.gas,
+        maxFeePerGas: gasFields.maxFeePerGas,
+        maxPriorityFeePerGas: gasFields.maxPriorityFeePerGas,
       });
 
       toast.info('트랜잭션 확인 중...');

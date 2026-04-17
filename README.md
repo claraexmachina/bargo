@@ -35,6 +35,8 @@ Web (Next.js PWA) ──► Negotiation Service (Fastify + SQLite)
 
 **신뢰 모델 요약**: 운영자는 협상 ~15초간 plaintext를 보며, 거래 완료 즉시 DB에서 자동 삭제됩니다. NEAR AI TEE의 LLM 추론은 심사위원이 `verify-attestation.mjs`로 독립 검증 가능합니다.
 
+**Gasless 상태**: Status Network Hoodi의 RLN prover 버그로 현재 gasless 일시 중단 (주최측 공지). 앱은 `linea_estimateGas`를 통합하여 **gasless-ready** — 수정 반영 시 자동으로 gasless 동작. 그 전까지는 유료 가스.
+
 ## Quick start
 
 ```bash
@@ -103,10 +105,13 @@ node scripts/verify-attestation.mjs --file scripts/fixtures/sample-attestation.j
 
 Before the 2-phone live demo:
 
-1. **Deploy contracts to Hoodi** — set `DEPLOYER_PRIVATE_KEY` in env:
+1. **Deploy contracts to Hoodi** — set `DEPLOYER_PRIVATE_KEY` in env (gasless down, paid-gas flags required per org announcement):
    ```bash
    cd contracts
    forge script script/Deploy.s.sol \
+     --with-gas-price 200gwei \
+     --priority-gas-price 100gwei \
+     --slow \
      --rpc-url https://public.hoodi.rpc.status.network \
      --broadcast --private-key $DEPLOYER_PRIVATE_KEY
    ```
