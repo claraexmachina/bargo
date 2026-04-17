@@ -115,6 +115,13 @@ export function getListingById(db: Database.Database, id: ListingId): ListingRow
   return stmt.get(hexToBuffer(id)) ?? null;
 }
 
+export function listOpenListings(db: Database.Database, limit: number, offset: number): ListingRow[] {
+  const stmt = db.prepare<[number, number], ListingRow>(
+    `SELECT * FROM listings WHERE status = 'open' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+  );
+  return stmt.all(limit, offset);
+}
+
 export function updateListingStatus(
   db: Database.Database,
   id: ListingId,

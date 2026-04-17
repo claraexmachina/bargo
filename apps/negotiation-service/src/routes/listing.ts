@@ -9,15 +9,60 @@
 // where nonce is a monotonic counter from the DB (per-seller counter).
 
 import type { FastifyInstance } from 'fastify';
-import { keccak256, encodePacked, toHex } from 'viem';
+import { keccak256, encodePacked } from 'viem';
 import { postListingRequestSchema } from '@haggle/shared';
-import { insertListing, nextCounter } from '../db/client.js';
+import type { ListingMeta, KarmaTier } from '@haggle/shared';
+import {
+  insertListing,
+  nextCounter,
+  getListingById,
+  listOpenListings,
+  bufferToHex,
+} from '../db/client.js';
 import type Database from 'better-sqlite3';
 
 export async function listingRoutes(
   app: FastifyInstance,
   opts: { db: Database.Database },
 ) {
+  // GET /listings — public listing feed. Returns only public fields; encrypted
+  // reservation blobs are NEVER included.
+  app.get('/listings', async (request, reply) => {
+    const q = request.query as { limit?: string; offset?: string };
+    const limit = Math.min(Math.max(Number(q.limit ?? 50), 1), 100);
+    const offset = Math.max(Number(q.offset ?? 0), 0);
+
+    const rows = listOpenListings(opts.db, limit, offset);
+    return reply.send({
+      listings: rows.map((row) => ({
+        id: bufferToHex(row.id),
+        seller: row.seller,
+        askPrice: row.ask_price,
+        requiredKarmaTier: row.required_karma_tier as KarmaTier,
+        itemMeta: JSON.parse(row.item_meta_json) as ListingMeta,
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+    });
+  });
+
+  // GET /listing/:id — single listing detail (public fields only)
+  app.get<{ Params: { id: `0x${string}` } }>('/listing/:id', async (request, reply) => {
+    const row = getListingById(opts.db, request.params.id);
+    if (!row) {
+      return reply.code(404).send({ error: { code: 'not-found', message: 'listing not found' } });
+    }
+    return reply.send({
+      id: bufferToHex(row.id),
+      seller: row.seller,
+      askPrice: row.ask_price,
+      requiredKarmaTier: row.required_karma_tier as KarmaTier,
+      itemMeta: JSON.parse(row.item_meta_json) as ListingMeta,
+      status: row.status,
+      createdAt: row.created_at,
+    });
+  });
+
   app.post('/listing', async (request, reply) => {
     const result = postListingRequestSchema.safeParse(request.body);
     if (!result.success) {
