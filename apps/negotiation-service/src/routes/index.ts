@@ -55,6 +55,10 @@ export async function registerRoutes(
     });
     await statusRoutes(sub, { db: opts.db });
     await attestationRoutes(sub, { db: opts.db, attestationDir: opts.attestationDir });
-    await intentRoutes(sub, { db: opts.db });
+    await intentRoutes(sub, {
+      db: opts.db,
+      serviceDecryptSk: opts.serviceDecryptSk,
+      nearAi: opts.nearAi,
+    });
   });
 }

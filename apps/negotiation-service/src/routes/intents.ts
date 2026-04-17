@@ -6,7 +6,14 @@
 // POST /intent-matches/ack — acknowledge a match
 
 import { postIntentRequestSchema } from '@bargo/shared';
-import type { IntentFilters, IntentId, KarmaTier, ListingId, ListingMeta } from '@bargo/shared';
+import type {
+  Hex,
+  IntentFilters,
+  IntentId,
+  KarmaTier,
+  ListingId,
+  ListingMeta,
+} from '@bargo/shared';
 import type Database from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
 import { keccak256, toBytes } from 'viem';
@@ -14,12 +21,22 @@ import {
   acknowledgeIntentMatch,
   bufferToHex,
   deactivateIntent,
+  getIntentById,
   getIntentMatchesByBuyer,
   insertIntent,
   listActiveIntentsByBuyer,
 } from '../db/client.js';
+import { backfillMatchesForNewIntent } from '../matchmaker.js';
+import type { NearAiConfig } from './index.js';
 
-export async function intentRoutes(app: FastifyInstance, opts: { db: Database.Database }) {
+export async function intentRoutes(
+  app: FastifyInstance,
+  opts: {
+    db: Database.Database;
+    serviceDecryptSk: Hex;
+    nearAi: NearAiConfig;
+  },
+) {
   // POST /intents — sealed intent registration
   app.post('/intents', async (request, reply) => {
     const result = postIntentRequestSchema.safeParse(request.body);
@@ -61,6 +78,25 @@ export async function intentRoutes(app: FastifyInstance, opts: { db: Database.Da
     });
 
     app.log.info({ intentId, buyer: body.buyer }, 'intent registered');
+
+    // Fire-and-forget backfill: evaluate this intent against every currently-open
+    // listing. The chain watcher only fires on future ListingCreated events, so
+    // without this the new intent would miss matches on existing listings.
+    const intentRow = getIntentById(opts.db, intentId);
+    if (intentRow) {
+      backfillMatchesForNewIntent({
+        db: opts.db,
+        intent: intentRow,
+        serviceDecryptSk: opts.serviceDecryptSk,
+        nearAi: opts.nearAi,
+        log: app.log,
+      }).catch((err) => {
+        app.log.warn(
+          { intentId, err: err instanceof Error ? err.message : String(err) },
+          'backfill: unexpected top-level error',
+        );
+      });
+    }
 
     return reply.code(201).send({ intentId });
   });

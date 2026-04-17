@@ -278,7 +278,12 @@ export default function NewIntentPage() {
           className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3"
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
-          <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push('/intents')}
+            className="flex-1"
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={!canSubmit} className="flex-1" size="lg">

@@ -32,16 +32,34 @@ const DEMO_TIER_MAP: Record<string, KarmaTier> = {
 
 const KARMA_READER_ADDRESS = (ADDRESSES[374] as { karmaReader?: Address } | undefined)?.karmaReader;
 
+const LISTING_ID_RE = /^0x[0-9a-fA-F]{64}$/;
+
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const listingId = params.id as ListingId;
+  const rawId = params.id as string;
+  const isValidId = LISTING_ID_RE.test(rawId);
+  const listingId = rawId as ListingId;
   const { address } = useAccount();
 
-  const { data: fetchedListing, isLoading } = useListing(listingId);
+  const { data: fetchedListing, isLoading } = useListing(isValidId ? listingId : null);
   // Fall back to local demo data when the negotiation service isn't reachable —
   // keeps the UI browsable in frontend-only demo mode.
-  const listing = fetchedListing ?? findDemoListing(listingId);
+  const listing = isValidId ? (fetchedListing ?? findDemoListing(listingId)) : undefined;
+
+  if (!isValidId) {
+    return (
+      <div className="text-center py-20 space-y-4">
+        <p className="text-4xl" aria-hidden="true">
+          🤔
+        </p>
+        <p className="text-muted-foreground">That listing id doesn't look right.</p>
+        <Button asChild variant="outline">
+          <Link href="/listings">Back to listings</Link>
+        </Button>
+      </div>
+    );
+  }
 
   // Read buyer's own Karma tier for offer-button gating
   const { data: contractBuyerTier } = useReadContract({
@@ -143,7 +161,7 @@ export default function ListingDetailPage() {
         className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-4 flex gap-3"
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
-        <Button variant="outline" onClick={() => router.back()} className="flex-1">
+        <Button variant="outline" onClick={() => router.push('/listings')} className="flex-1">
           Back
         </Button>
 

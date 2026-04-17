@@ -372,6 +372,11 @@ export function insertIntent(db: Database.Database, params: InsertIntentParams):
   );
 }
 
+export function getIntentById(db: Database.Database, id: IntentId): IntentRow | null {
+  const stmt = db.prepare<[Buffer], IntentRow>('SELECT * FROM intents WHERE id = ?');
+  return stmt.get(hexToBuffer(id)) ?? null;
+}
+
 export function listActiveIntentsByBuyer(db: Database.Database, buyer: string): IntentRow[] {
   const stmt = db.prepare<[string], IntentRow>(
     `SELECT * FROM intents WHERE buyer = ? AND active = 1 ORDER BY created_at DESC`,

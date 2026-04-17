@@ -27,6 +27,7 @@ import {
   getListingById,
   insertIntentMatch,
   listAllActiveIntents,
+  listOpenListings,
 } from './db/client.js';
 import type { IntentRow } from './db/client.js';
 import type { NearAiConfig } from './routes/index.js';
@@ -198,6 +199,63 @@ export async function evaluateListingAgainstIntent(opts: {
     });
     log.info({ intentId, listingId, score: aiResult.score }, 'matchmaker: intent match inserted');
   }
+}
+
+/**
+ * Re-evaluate every currently-open listing against a single newly-created intent.
+ * Used when a buyer posts an intent after listings have already been registered —
+ * the chain event-driven path only fires for future ListingCreated events, so
+ * without this backfill the new intent would only match listings created later.
+ *
+ * Fire-and-forget: the caller (POST /intents) returns 201 immediately and this
+ * runs in the background, logging progress per listing.
+ */
+export async function backfillMatchesForNewIntent(opts: {
+  db: Database.Database;
+  intent: IntentRow;
+  serviceDecryptSk: Hex;
+  nearAi: NearAiConfig;
+  log: FastifyBaseLogger;
+}): Promise<void> {
+  const { db, intent, serviceDecryptSk, nearAi, log } = opts;
+  const intentId = bufferToHex(intent.id) as IntentId;
+
+  // Paginate through open listings in 50-row chunks to avoid loading huge sets at once.
+  const PAGE_SIZE = 50;
+  let offset = 0;
+  let totalEvaluated = 0;
+
+  while (true) {
+    const page = listOpenListings(db, PAGE_SIZE, offset);
+    if (page.length === 0) break;
+
+    for (const row of page) {
+      const listingId = bufferToHex(row.id) as ListingId;
+      const requiredKarmaTier = row.required_karma_tier as KarmaTier;
+      try {
+        await evaluateListingAgainstIntent({
+          db,
+          listingId,
+          requiredKarmaTier,
+          intent,
+          serviceDecryptSk,
+          nearAi,
+          log,
+        });
+      } catch (err) {
+        log.warn(
+          { intentId, listingId, err: err instanceof Error ? err.message : String(err) },
+          'backfill: evaluate failed, continuing',
+        );
+      }
+      totalEvaluated++;
+    }
+
+    if (page.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  log.info({ intentId, evaluated: totalEvaluated }, 'backfill: finished');
 }
 
 async function processListing(opts: {
