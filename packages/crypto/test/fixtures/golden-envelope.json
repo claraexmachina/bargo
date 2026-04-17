@@ -1,0 +1,14 @@
+{
+  "_comment": "Fixed test fixture for cross-language verification. Python crypto.py in services/tee/haggle_tee/crypto.py MUST be able to decrypt this envelope using teeSk and recover plaintext. Derivation: X25519(ephSk, teePk) -> HKDF-SHA256(salt=ephPub||teePk, info='haggle-v1') -> XChaCha20-Poly1305(key, nonce, aad=listingId||offerId). See PLAN §3.5 and packages/crypto/test/roundtrip.test.ts.",
+  "teeSk": "0xab00000000000000000000000000000000000000000000000000000000000001",
+  "teePk": "0xf5b43d3cceb4eb52666c8b648a206352baaa3d8a0782aab8209ed9aa9d28c152",
+  "listingId": "0xaa00000000000000000000000000000000000000000000000000000000000000",
+  "offerId": "0xbb00000000000000000000000000000000000000000000000000000000000000",
+  "plaintext": "700000000000000000000000",
+  "blob": {
+    "v": 1,
+    "ephPub": "0x55f74755c95ecd1ebb42c8fa02577a98df4abca1edb54dad8eba1868f7506b6b",
+    "nonce": "0x770000000000000000000000000000000000000000000000",
+    "ct": "0x555026bb5818aec8ac00a0dbeda8e5007f3215f8770b6232b053bad621f59a1cf45685f014ef1b24"
+  }
+}

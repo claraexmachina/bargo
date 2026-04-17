@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+out/
+.next/
+
+# Forge / Foundry
+cache/
+broadcast/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Coverage
+coverage/
+lcov.info
+
+# Vercel
+.vercel
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.venv.bak/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Database
+data/*.db
+
+# User-private task notes (per global rules)
+tasks/
+
+# OS
+.DS_Store
+Thumbs.db
